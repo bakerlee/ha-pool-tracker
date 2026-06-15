@@ -24,7 +24,7 @@ Pool Tracker is independent of PoolMath, Leslie's, LaMotte, PoolSense, Flipr, Ha
 4. Restart Home Assistant.
 5. Go to **Settings > Devices & services > Add integration**.
 6. Search for `Pool Tracker`.
-7. Create the first pool. The display name defaults to `Pool`.
+7. Create the first pool. The integration entry is named `Pool Tracker`; the pool device display name defaults to `Pool`.
 
 ### Manual
 

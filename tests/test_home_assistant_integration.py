@@ -15,6 +15,7 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_POOL_VOLUME,
     CONF_POOL_VOLUME_UNIT,
     CONF_POOLS,
+    DEFAULT_ENTRY_TITLE,
     DOMAIN,
     SERVICE_LOG_WATER_TEST,
     WATER_TESTING_METHOD,
@@ -99,3 +100,20 @@ async def test_options_flow_opens_for_existing_pool(hass) -> None:
 
     assert result["type"] == "form"
     assert result["step_id"] == "init"
+
+
+async def test_setup_normalizes_legacy_entry_title_to_pool_name(hass) -> None:
+    """Legacy single-pool titles become the virtual pool device name."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Rooftop Pool",
+        unique_id=DOMAIN,
+        data={CONF_POOLS: [{CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"}]},
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.title == DEFAULT_ENTRY_TITLE
+    assert entry.runtime_data.pools == {"pool": "Rooftop Pool"}

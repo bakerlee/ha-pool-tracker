@@ -207,6 +207,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: PoolTrackerConfigEntry) 
     """Set up Pool Tracker from a config entry."""
     from .const import (
         CONF_POOL_NAME,
+        CONF_POOLS,
+        DEFAULT_ENTRY_TITLE,
         DEFAULT_POOL_ID,
         DEFAULT_POOL_NAME,
         DOMAIN,
@@ -214,6 +216,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: PoolTrackerConfigEntry) 
     )
     from .store import PoolTrackerStore, create_home_assistant_store
 
+    _normalize_entry_metadata(
+        hass,
+        entry,
+        conf_pools=CONF_POOLS,
+        conf_pool_name=CONF_POOL_NAME,
+        default_entry_title=DEFAULT_ENTRY_TITLE,
+        default_pool_name=DEFAULT_POOL_NAME,
+    )
     pool_profiles = _pool_profiles_from_entry(entry)
     pools = {
         pool_id: profile.get(CONF_POOL_NAME, DEFAULT_POOL_NAME)
@@ -310,6 +320,39 @@ def _pool_profiles_from_entry(
         pool.setdefault(CONF_DEFAULT_TESTING_METHOD, DEFAULT_TESTING_METHOD)
         profiles[pool_id] = pool
     return profiles
+
+
+def _normalize_entry_metadata(
+    hass: HomeAssistant,
+    entry: PoolTrackerConfigEntry,
+    *,
+    conf_pools: str,
+    conf_pool_name: str,
+    default_entry_title: str,
+    default_pool_name: str,
+) -> None:
+    """Keep the integration entry distinct from the virtual pool device."""
+    if entry.title == default_entry_title:
+        return
+
+    updates: dict[str, Any] = {"title": default_entry_title}
+    pool_source = "options" if entry.options.get(conf_pools) else "data"
+    raw_pools = entry.options.get(conf_pools) or entry.data.get(conf_pools)
+    if (
+        entry.title
+        and entry.title != default_pool_name
+        and isinstance(raw_pools, list)
+        and len(raw_pools) == 1
+    ):
+        pool = dict(raw_pools[0])
+        if pool.get(conf_pool_name, default_pool_name) == default_pool_name:
+            pool[conf_pool_name] = entry.title
+            if pool_source == "options":
+                updates["options"] = {**entry.options, conf_pools: [pool]}
+            else:
+                updates["data"] = {**entry.data, conf_pools: [pool]}
+
+    hass.config_entries.async_update_entry(entry, **updates)
 
 
 def _fire_record_created(hass: HomeAssistant, record: dict[str, Any]) -> None:

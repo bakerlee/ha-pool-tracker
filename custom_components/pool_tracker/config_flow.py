@@ -18,6 +18,7 @@ from .const import (
     CONF_POOLS,
     CONF_SANITIZER_TYPE,
     CONF_SURFACE_TYPE,
+    DEFAULT_ENTRY_TITLE,
     DEFAULT_POOL_ID,
     DEFAULT_POOL_NAME,
     DEFAULT_POOL_VOLUME_UNIT,
@@ -138,7 +139,7 @@ class PoolTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             pool = build_pool_config(user_input)
             return self.async_create_entry(
-                title=pool[CONF_POOL_NAME],
+                title=DEFAULT_ENTRY_TITLE,
                 data={CONF_POOLS: [pool]},
             )
 
@@ -157,7 +158,7 @@ class PoolTrackerOptionsFlow(config_entries.OptionsFlowWithReload):
         if user_input is not None:
             pool = build_pool_config(user_input)
             self.hass.config_entries.async_update_entry(
-                self.config_entry, title=pool[CONF_POOL_NAME]
+                self.config_entry, title=DEFAULT_ENTRY_TITLE
             )
             return self.async_create_entry(title="", data={CONF_POOLS: [pool]})
 
