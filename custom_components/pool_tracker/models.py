@@ -16,6 +16,7 @@ from .const import (
     WATER_READING_TOTAL_ALKALINITY,
     WATER_READING_WATER_CLARITY,
     WATER_TEST_READING_UNITS,
+    WATER_TESTING_METHOD,
 )
 
 StorageData = dict[str, Any]
@@ -64,6 +65,7 @@ def build_water_test_record(
     event_timestamp: datetime | str | None = None,
     source: str | None = None,
     notes: str | None = None,
+    testing_method: str | None = None,
     record_id: str | None = None,
     created_timestamp: datetime | str | None = None,
 ) -> PoolRecord:
@@ -82,7 +84,7 @@ def build_water_test_record(
             "Water tests require at least one reading, clarity value, or note."
         )
 
-    return _base_record(
+    record = _base_record(
         pool_id=pool_id,
         record_type=RECORD_TYPE_WATER_TEST,
         event_timestamp=event_timestamp,
@@ -90,7 +92,12 @@ def build_water_test_record(
         notes=notes,
         record_id=record_id,
         created_timestamp=created_timestamp,
-    ) | {"readings": explicit_readings}
+    ) | {
+        "readings": explicit_readings,
+    }
+    if testing_method:
+        record[WATER_TESTING_METHOD] = testing_method
+    return record
 
 
 def build_chemical_addition_record(

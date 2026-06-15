@@ -15,16 +15,23 @@ from custom_components.pool_tracker import (  # noqa: E402
 
 def test_water_test_service_validation_accepts_partial_reading() -> None:
     """The water-test service accepts any non-empty subset of readings."""
-    data = _water_test_service_schema()({"ph": "7.2"})
+    data = _water_test_service_schema()({"ph": "7.2", "testing_method": "strips"})
 
     assert data["ph"] == 7.2
     assert data["source"] == "service"
+    assert data["testing_method"] == "strips"
 
 
 def test_water_test_service_validation_rejects_empty_payload() -> None:
     """The water-test service requires at least one reading, clarity value, or note."""
     with pytest.raises(vol.Invalid):
         _water_test_service_schema()({})
+
+
+def test_water_test_service_validation_rejects_unknown_testing_method() -> None:
+    """The water-test service only accepts known testing method labels."""
+    with pytest.raises(vol.Invalid):
+        _water_test_service_schema()({"ph": "7.2", "testing_method": "guessing"})
 
 
 def test_chemical_addition_service_validation_requires_core_fields() -> None:

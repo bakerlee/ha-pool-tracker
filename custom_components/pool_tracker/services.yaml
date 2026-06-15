@@ -45,6 +45,17 @@ log_water_test:
       example: clear
       selector:
         text:
+    testing_method:
+      example: strips
+      selector:
+        select:
+          options:
+            - strips
+            - drop_test
+            - digital_meter
+            - photometer
+            - pool_store
+            - other
     notes:
       example: Taylor drop test after evening swim.
       selector:

@@ -34,6 +34,18 @@ Pool Tracker is independent of PoolMath, Leslie's, LaMotte, PoolSense, Flipr, Ha
 
 Do not configure this integration in YAML. Stable configuration is stored in a Home Assistant config entry.
 
+## Pool Profile
+
+The config entry stores a small pool profile for future calculations and record context:
+
+- Volume and volume unit
+- Pool type, such as outdoor, indoor, spa, or swim spa
+- Surface type, such as plaster, vinyl, fiberglass, tile, or painted
+- Sanitizer type, such as chlorine, salt chlorine generator, or bromine
+- Default water-testing method
+
+These attributes can be changed from the integration options. They are context only in v1; Pool Tracker still does not calculate chemical recommendations.
+
 ## Entities
 
 Pool Tracker exposes read-only sensors derived from the event log:
@@ -60,6 +72,16 @@ service: pool_tracker.log_water_test
 data:
   ph: 7.2
   source: agent
+```
+
+If `testing_method` is omitted, Pool Tracker stores the pool's default testing method on the record. Override it when a specific test used a different method:
+
+```yaml
+service: pool_tracker.log_water_test
+data:
+  ph: 7.2
+  testing_method: drop_test
+  source: dashboard
 ```
 
 Backfilled example:
@@ -146,6 +168,8 @@ Each record includes:
 - Optional notes
 
 Water-test fields are stored only when explicitly submitted. Chemical additions store chemical, amount, and unit.
+
+Water-test records also store the resolved testing method when one is configured or supplied on the service call. This is intended for future method-aware accuracy handling.
 
 Storage schema version `1` is explicit so future migrations can be handled deliberately.
 

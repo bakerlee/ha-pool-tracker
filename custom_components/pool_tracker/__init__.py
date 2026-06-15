@@ -20,6 +20,7 @@ class PoolTrackerRuntime:
 
     store: PoolTrackerStore
     pools: dict[str, str]
+    pool_profiles: dict[str, dict[str, Any]]
 
 
 def _number(minimum: float | None = None, maximum: float | None = None):
@@ -81,6 +82,8 @@ def _water_test_service_schema():
         WATER_READING_PH,
         WATER_READING_TOTAL_ALKALINITY,
         WATER_READING_WATER_CLARITY,
+        WATER_TESTING_METHOD,
+        WATER_TESTING_METHODS,
     )
 
     return vol.Schema(
@@ -95,6 +98,7 @@ def _water_test_service_schema():
                 vol.Optional(WATER_READING_TOTAL_ALKALINITY): _number(0),
                 vol.Optional(WATER_READING_CYA): _number(0),
                 vol.Optional(WATER_READING_WATER_CLARITY): cv.string,
+                vol.Optional(WATER_TESTING_METHOD): vol.In(WATER_TESTING_METHODS),
             },
             _validate_water_test_content,
         )
@@ -125,6 +129,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     from homeassistant.core import SupportsResponse
 
     from .const import (
+        CONF_DEFAULT_TESTING_METHOD,
         CONF_POOL_ID,
         DOMAIN,
         SERVICE_LOG_CHEMICAL_ADDITION,
@@ -134,6 +139,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         WATER_READING_PH,
         WATER_READING_TOTAL_ALKALINITY,
         WATER_READING_WATER_CLARITY,
+        WATER_TESTING_METHOD,
     )
     from .models import build_chemical_addition_record, build_water_test_record
 
@@ -157,6 +163,8 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             event_timestamp=call.data.get("event_timestamp"),
             source=call.data.get("source"),
             notes=call.data.get("notes"),
+            testing_method=call.data.get(WATER_TESTING_METHOD)
+            or runtime.pool_profiles.get(pool_id, {}).get(CONF_DEFAULT_TESTING_METHOD),
         )
         await runtime.store.async_append(record)
         _fire_record_created(hass, record)
@@ -198,18 +206,18 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: PoolTrackerConfigEntry) -> bool:
     """Set up Pool Tracker from a config entry."""
     from .const import (
-        CONF_POOL_ID,
         CONF_POOL_NAME,
-        CONF_POOLS,
         DEFAULT_POOL_ID,
+        DEFAULT_POOL_NAME,
         DOMAIN,
         PLATFORMS,
     )
     from .store import PoolTrackerStore, create_home_assistant_store
 
+    pool_profiles = _pool_profiles_from_entry(entry)
     pools = {
-        pool[CONF_POOL_ID]: pool[CONF_POOL_NAME]
-        for pool in entry.data.get(CONF_POOLS, [])
+        pool_id: profile.get(CONF_POOL_NAME, DEFAULT_POOL_NAME)
+        for pool_id, profile in pool_profiles.items()
     }
     default_pool_id = next(iter(pools), DEFAULT_POOL_ID)
     store = PoolTrackerStore(
@@ -217,7 +225,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: PoolTrackerConfigEntry) 
     )
     await store.async_load()
 
-    entry.runtime_data = PoolTrackerRuntime(store=store, pools=pools)
+    entry.runtime_data = PoolTrackerRuntime(
+        store=store, pools=pools, pool_profiles=pool_profiles
+    )
     hass.data[DOMAIN]["entries"][entry.entry_id] = entry
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -273,6 +283,33 @@ def _runtime_for_call(
         )
 
     return matches[0]
+
+
+def _pool_profiles_from_entry(
+    entry: PoolTrackerConfigEntry,
+) -> dict[str, dict[str, Any]]:
+    from .const import (
+        CONF_DEFAULT_TESTING_METHOD,
+        CONF_POOL_ID,
+        CONF_POOL_NAME,
+        CONF_POOLS,
+        DEFAULT_POOL_ID,
+        DEFAULT_POOL_NAME,
+        DEFAULT_TESTING_METHOD,
+    )
+
+    raw_pools = entry.options.get(CONF_POOLS) or entry.data.get(CONF_POOLS, [])
+    if not raw_pools:
+        raw_pools = [{CONF_POOL_ID: DEFAULT_POOL_ID, CONF_POOL_NAME: DEFAULT_POOL_NAME}]
+
+    profiles: dict[str, dict[str, Any]] = {}
+    for raw_pool in raw_pools:
+        pool = dict(raw_pool)
+        pool_id = pool.setdefault(CONF_POOL_ID, DEFAULT_POOL_ID)
+        pool.setdefault(CONF_POOL_NAME, DEFAULT_POOL_NAME)
+        pool.setdefault(CONF_DEFAULT_TESTING_METHOD, DEFAULT_TESTING_METHOD)
+        profiles[pool_id] = pool
+    return profiles
 
 
 def _fire_record_created(hass: HomeAssistant, record: dict[str, Any]) -> None:

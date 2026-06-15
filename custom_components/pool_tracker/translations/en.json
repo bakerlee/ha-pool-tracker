@@ -6,7 +6,30 @@
         "title": "Pool Tracker",
         "description": "Create a local manual pool maintenance log.",
         "data": {
-          "name": "Pool name"
+          "name": "Pool name",
+          "volume": "Volume",
+          "volume_unit": "Volume unit",
+          "pool_type": "Pool type",
+          "surface_type": "Surface type",
+          "sanitizer_type": "Sanitizer type",
+          "default_testing_method": "Default testing method"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Pool profile",
+        "description": "Update pool attributes used by Pool Tracker records.",
+        "data": {
+          "name": "Pool name",
+          "volume": "Volume",
+          "volume_unit": "Volume unit",
+          "pool_type": "Pool type",
+          "surface_type": "Surface type",
+          "sanitizer_type": "Sanitizer type",
+          "default_testing_method": "Default testing method"
         }
       }
     }
@@ -47,6 +70,10 @@
         "water_clarity": {
           "name": "Water clarity",
           "description": "Manual clarity note such as clear, cloudy, or green."
+        },
+        "testing_method": {
+          "name": "Testing method",
+          "description": "Override the pool's default testing method for this water test."
         },
         "notes": {
           "name": "Notes",

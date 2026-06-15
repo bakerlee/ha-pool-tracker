@@ -12,6 +12,7 @@ from custom_components.pool_tracker.const import (
     WATER_READING_FREE_CHLORINE,
     WATER_READING_PH,
     WATER_READING_WATER_CLARITY,
+    WATER_TESTING_METHOD,
 )
 from custom_components.pool_tracker.models import (
     build_chemical_addition_record,
@@ -55,6 +56,19 @@ async def test_partial_water_test_allows_subset(store: PoolTrackerStore) -> None
 
     readings = store.records("pool")[0]["readings"]
     assert readings == {WATER_READING_PH: {"value": 7.2, "unit": "pH"}}
+
+
+async def test_water_test_stores_testing_method(store: PoolTrackerStore) -> None:
+    """A water test can record the method used to produce its readings."""
+    record = build_water_test_record(
+        pool_id="pool",
+        readings={WATER_READING_PH: 7.2},
+        testing_method="strips",
+    )
+
+    await store.async_append(record)
+
+    assert store.records("pool")[0][WATER_TESTING_METHOD] == "strips"
 
 
 async def test_timestamp_backfilling(store: PoolTrackerStore) -> None:

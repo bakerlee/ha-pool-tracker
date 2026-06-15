@@ -26,6 +26,7 @@ from .const import (
     WATER_READING_PH,
     WATER_READING_TOTAL_ALKALINITY,
     WATER_READING_WATER_CLARITY,
+    WATER_TESTING_METHOD,
 )
 from .models import PoolRecord, chemical_summary, parse_utc
 
@@ -41,11 +42,14 @@ class PoolSensorDescription(SensorEntityDescription):
 def _record_attrs(record: PoolRecord | None) -> dict[str, Any] | None:
     if record is None:
         return None
-    return {
+    attrs = {
         "record_id": record["id"],
         "event_timestamp": record["event_timestamp"],
         "created_timestamp": record["created_timestamp"],
     }
+    if testing_method := record.get(WATER_TESTING_METHOD):
+        attrs[WATER_TESTING_METHOD] = testing_method
+    return attrs
 
 
 def _latest_record_entity_attrs(
