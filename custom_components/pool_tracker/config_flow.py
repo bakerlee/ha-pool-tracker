@@ -6,6 +6,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_DEFAULT_TESTING_METHOD,
@@ -31,15 +32,25 @@ from .const import (
 
 
 def _optional_text(value: Any) -> str | None:
+    if value is None:
+        return None
     text = str(value).strip()
     return text or None
 
 
-def _positive_number(value: Any) -> float:
-    number = vol.Coerce(float)(value)
-    if number <= 0:
-        raise vol.Invalid("value must be greater than zero")
-    return number
+def _optional_with_default(key: str, defaults: dict[str, Any]) -> vol.Optional:
+    if (default := defaults.get(key)) not in (None, ""):
+        return vol.Optional(key, default=default)
+    return vol.Optional(key)
+
+
+def _select(options: tuple[str, ...]) -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=list(options),
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
 
 
 def _pool_profile_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
@@ -48,26 +59,28 @@ def _pool_profile_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
         vol.Optional(
             CONF_POOL_NAME, default=defaults.get(CONF_POOL_NAME, DEFAULT_POOL_NAME)
         ): str,
-        vol.Optional(CONF_POOL_VOLUME, default=defaults.get(CONF_POOL_VOLUME)): vol.Any(
-            None, "", _positive_number
+        _optional_with_default(CONF_POOL_VOLUME, defaults): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0.001,
+                step="any",
+                mode=selector.NumberSelectorMode.BOX,
+            )
         ),
         vol.Optional(
             CONF_POOL_VOLUME_UNIT,
             default=defaults.get(CONF_POOL_VOLUME_UNIT, DEFAULT_POOL_VOLUME_UNIT),
-        ): vol.In(POOL_VOLUME_UNITS),
-        vol.Optional(CONF_POOL_TYPE, default=defaults.get(CONF_POOL_TYPE, "")): vol.Any(
-            "", vol.In(POOL_TYPES)
+        ): _select(POOL_VOLUME_UNITS),
+        _optional_with_default(CONF_POOL_TYPE, defaults): _select(POOL_TYPES),
+        _optional_with_default(CONF_SURFACE_TYPE, defaults): _select(
+            POOL_SURFACE_TYPES
         ),
-        vol.Optional(
-            CONF_SURFACE_TYPE, default=defaults.get(CONF_SURFACE_TYPE, "")
-        ): vol.Any("", vol.In(POOL_SURFACE_TYPES)),
-        vol.Optional(
-            CONF_SANITIZER_TYPE, default=defaults.get(CONF_SANITIZER_TYPE, "")
-        ): vol.Any("", vol.In(POOL_SANITIZER_TYPES)),
+        _optional_with_default(CONF_SANITIZER_TYPE, defaults): _select(
+            POOL_SANITIZER_TYPES
+        ),
         vol.Optional(
             CONF_DEFAULT_TESTING_METHOD,
             default=defaults.get(CONF_DEFAULT_TESTING_METHOD, DEFAULT_TESTING_METHOD),
-        ): vol.In(WATER_TESTING_METHODS),
+        ): _select(WATER_TESTING_METHODS),
     }
     return vol.Schema(schema)
 
@@ -113,7 +126,7 @@ class PoolTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,
     ) -> config_entries.OptionsFlow:
         """Create the options flow."""
-        return PoolTrackerOptionsFlow(config_entry)
+        return PoolTrackerOptionsFlow()
 
     async def async_step_user(self, user_input: dict[str, str] | None = None):
         """Create the initial single-pool config entry."""
@@ -136,24 +149,19 @@ class PoolTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
 
-class PoolTrackerOptionsFlow(config_entries.OptionsFlow):
+class PoolTrackerOptionsFlow(config_entries.OptionsFlowWithReload):
     """Handle Pool Tracker options updates."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self._config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         """Update the single-pool profile."""
         if user_input is not None:
             pool = build_pool_config(user_input)
             self.hass.config_entries.async_update_entry(
-                self._config_entry, title=pool[CONF_POOL_NAME]
+                self.config_entry, title=pool[CONF_POOL_NAME]
             )
             return self.async_create_entry(title="", data={CONF_POOLS: [pool]})
 
         return self.async_show_form(
             step_id="init",
-            data_schema=_pool_profile_schema(
-                pool_config_from_entry(self._config_entry)
-            ),
+            data_schema=_pool_profile_schema(pool_config_from_entry(self.config_entry)),
         )

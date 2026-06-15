@@ -83,3 +83,19 @@ async def test_setup_defaults_missing_pool_profile_fields(hass) -> None:
         entry.runtime_data.pool_profiles["pool"][CONF_DEFAULT_TESTING_METHOD]
         == "strips"
     )
+
+
+async def test_options_flow_opens_for_existing_pool(hass) -> None:
+    """Existing config entries can open the pool profile options flow."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id=DOMAIN,
+        data={CONF_POOLS: [{CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"}]},
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "init"
