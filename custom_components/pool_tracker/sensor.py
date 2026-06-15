@@ -1,4 +1,4 @@
-"""Read-only latest-value sensors for Pool Tracker."""
+"""Read-only sensors for Pool Tracker."""
 
 from __future__ import annotations
 
@@ -32,12 +32,10 @@ from .models import PoolRecord, chemical_summary, parse_utc
 
 @dataclass(frozen=True, kw_only=True)
 class PoolSensorDescription(SensorEntityDescription):
-    """Description for Pool Tracker latest-value sensors."""
+    """Description for Pool Tracker sensors."""
 
-    value_fn: Callable[[PoolTrackerLatestSensor], Any]
-    attr_fn: Callable[[PoolTrackerLatestSensor], dict[str, Any] | None] = (
-        lambda entity: None
-    )
+    value_fn: Callable[[PoolTrackerSensor], Any]
+    attr_fn: Callable[[PoolTrackerSensor], dict[str, Any] | None] = lambda entity: None
 
 
 def _record_attrs(record: PoolRecord | None) -> dict[str, Any] | None:
@@ -51,12 +49,12 @@ def _record_attrs(record: PoolRecord | None) -> dict[str, Any] | None:
 
 
 def _latest_record_entity_attrs(
-    entity: PoolTrackerLatestSensor, record_type: str
+    entity: PoolTrackerSensor, record_type: str
 ) -> dict[str, Any] | None:
     return _record_attrs(entity.store.latest_record(record_type, entity.pool_id))
 
 
-def _latest_reading_value(entity: PoolTrackerLatestSensor, reading: str) -> Any:
+def _latest_reading_value(entity: PoolTrackerSensor, reading: str) -> Any:
     latest = entity.store.latest_reading(reading, entity.pool_id)
     if latest is None:
         return None
@@ -64,7 +62,7 @@ def _latest_reading_value(entity: PoolTrackerLatestSensor, reading: str) -> Any:
 
 
 def _latest_reading_attrs(
-    entity: PoolTrackerLatestSensor, reading: str
+    entity: PoolTrackerSensor, reading: str
 ) -> dict[str, Any] | None:
     latest = entity.store.latest_reading(reading, entity.pool_id)
     if latest is None:
@@ -75,8 +73,8 @@ def _latest_reading_attrs(
 
 SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
     PoolSensorDescription(
-        key="latest_water_test_timestamp",
-        translation_key="latest_water_test_timestamp",
+        key="last_water_test",
+        translation_key="last_water_test",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda entity: (
             parse_utc(record["event_timestamp"])
@@ -92,8 +90,8 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
         ),
     ),
     PoolSensorDescription(
-        key="latest_chemical_addition_timestamp",
-        translation_key="latest_chemical_addition_timestamp",
+        key="last_chemical_addition",
+        translation_key="last_chemical_addition",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda entity: (
             parse_utc(record["event_timestamp"])
@@ -109,8 +107,8 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
         ),
     ),
     PoolSensorDescription(
-        key="latest_free_chlorine",
-        translation_key="latest_free_chlorine",
+        key="free_chlorine",
+        translation_key="free_chlorine",
         native_unit_of_measurement="ppm",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
@@ -122,8 +120,8 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
         ),
     ),
     PoolSensorDescription(
-        key="latest_ph",
-        translation_key="latest_ph",
+        key="ph",
+        translation_key="ph",
         native_unit_of_measurement="pH",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
@@ -131,8 +129,8 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
         attr_fn=lambda entity: _latest_reading_attrs(entity, WATER_READING_PH),
     ),
     PoolSensorDescription(
-        key="latest_total_alkalinity",
-        translation_key="latest_total_alkalinity",
+        key="total_alkalinity",
+        translation_key="total_alkalinity",
         native_unit_of_measurement="ppm",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
@@ -144,8 +142,8 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
         ),
     ),
     PoolSensorDescription(
-        key="latest_cya",
-        translation_key="latest_cya",
+        key="cya",
+        translation_key="cya",
         native_unit_of_measurement="ppm",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
@@ -153,8 +151,8 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
         attr_fn=lambda entity: _latest_reading_attrs(entity, WATER_READING_CYA),
     ),
     PoolSensorDescription(
-        key="latest_water_clarity",
-        translation_key="latest_water_clarity",
+        key="water_clarity",
+        translation_key="water_clarity",
         device_class=SensorDeviceClass.ENUM,
         value_fn=lambda entity: _latest_reading_value(
             entity, WATER_READING_WATER_CLARITY
@@ -164,8 +162,8 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
         ),
     ),
     PoolSensorDescription(
-        key="latest_chemical_addition_summary",
-        translation_key="latest_chemical_addition_summary",
+        key="chemical_addition_summary",
+        translation_key="chemical_addition_summary",
         value_fn=lambda entity: chemical_summary(
             entity.store.latest_record(RECORD_TYPE_CHEMICAL_ADDITION, entity.pool_id)
         ),
@@ -181,17 +179,17 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Pool Tracker latest-value sensors."""
+    """Set up Pool Tracker sensors."""
     runtime = entry.runtime_data
     async_add_entities(
-        PoolTrackerLatestSensor(entry, pool_id, pool_name, description)
+        PoolTrackerSensor(entry, pool_id, pool_name, description)
         for pool_id, pool_name in runtime.pools.items()
         for description in SENSOR_DESCRIPTIONS
     )
 
 
-class PoolTrackerLatestSensor(SensorEntity):
-    """A read-only latest-value sensor derived from the append-only event log."""
+class PoolTrackerSensor(SensorEntity):
+    """A read-only sensor derived from the append-only event log."""
 
     entity_description: PoolSensorDescription
     _attr_has_entity_name = True
@@ -224,7 +222,7 @@ class PoolTrackerLatestSensor(SensorEntity):
 
     @property
     def native_value(self) -> Any:
-        """Return the latest derived sensor value."""
+        """Return the derived sensor value."""
         return self.entity_description.value_fn(self)
 
     @property

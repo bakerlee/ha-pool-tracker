@@ -91,29 +91,29 @@
   },
   "entity": {
     "sensor": {
-      "latest_water_test_timestamp": {
-        "name": "Latest water test timestamp"
+      "last_water_test": {
+        "name": "Last water test"
       },
-      "latest_chemical_addition_timestamp": {
-        "name": "Latest chemical addition timestamp"
+      "last_chemical_addition": {
+        "name": "Last chemical addition"
       },
-      "latest_free_chlorine": {
-        "name": "Latest free chlorine"
+      "free_chlorine": {
+        "name": "Free chlorine"
       },
-      "latest_ph": {
-        "name": "Latest pH"
+      "ph": {
+        "name": "pH"
       },
-      "latest_total_alkalinity": {
-        "name": "Latest total alkalinity"
+      "total_alkalinity": {
+        "name": "Total alkalinity"
       },
-      "latest_cya": {
-        "name": "Latest CYA/stabilizer"
+      "cya": {
+        "name": "CYA/stabilizer"
       },
-      "latest_water_clarity": {
-        "name": "Latest water clarity"
+      "water_clarity": {
+        "name": "Water clarity"
       },
-      "latest_chemical_addition_summary": {
-        "name": "Latest chemical addition summary"
+      "chemical_addition_summary": {
+        "name": "Chemical addition summary"
       }
     }
   }

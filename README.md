@@ -2,7 +2,7 @@
 
 Pool Tracker is a free, local-first Home Assistant custom integration for manual pool maintenance logging.
 
-It stores an append-only event log for water tests and chemical additions, exposes read-only latest-value sensors, and registers narrow Home Assistant services that dashboards, automations, OpenClaw, or other agents can call.
+It stores an append-only event log for water tests and chemical additions, exposes read-only derived sensors, and registers narrow Home Assistant services that dashboards, automations, OpenClaw, or other agents can call.
 
 ## Scope
 
@@ -36,16 +36,16 @@ Do not configure this integration in YAML. Stable configuration is stored in a H
 
 ## Entities
 
-Pool Tracker exposes read-only latest-value sensors derived from the event log:
+Pool Tracker exposes read-only sensors derived from the event log:
 
-- Latest water test timestamp
-- Latest chemical addition timestamp
-- Latest free chlorine
-- Latest pH
-- Latest total alkalinity
-- Latest CYA/stabilizer
-- Latest water clarity
-- Latest chemical addition summary
+- Last water test
+- Last chemical addition
+- Free chlorine
+- pH
+- Total alkalinity
+- CYA/stabilizer
+- Water clarity
+- Chemical addition summary
 
 These sensors are display surfaces. They are not mutable input fields.
 
