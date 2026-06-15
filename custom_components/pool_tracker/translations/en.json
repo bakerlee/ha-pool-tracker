@@ -1,0 +1,120 @@
+{
+  "title": "Pool Tracker",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Pool Tracker",
+        "description": "Create a local manual pool maintenance log.",
+        "data": {
+          "name": "Pool name"
+        }
+      }
+    }
+  },
+  "services": {
+    "log_water_test": {
+      "name": "Log water test",
+      "description": "Append a manual water-test record.",
+      "fields": {
+        "pool_id": {
+          "name": "Pool ID",
+          "description": "Pool identifier. Leave blank for the only configured pool."
+        },
+        "event_timestamp": {
+          "name": "Event timestamp",
+          "description": "When the test happened. Leave blank to use now."
+        },
+        "source": {
+          "name": "Source",
+          "description": "Optional caller label such as dashboard, service, or agent."
+        },
+        "free_chlorine": {
+          "name": "Free chlorine",
+          "description": "Free chlorine reading in ppm."
+        },
+        "ph": {
+          "name": "pH",
+          "description": "pH reading."
+        },
+        "total_alkalinity": {
+          "name": "Total alkalinity",
+          "description": "Total alkalinity reading in ppm."
+        },
+        "cya": {
+          "name": "CYA/stabilizer",
+          "description": "CYA/stabilizer reading in ppm."
+        },
+        "water_clarity": {
+          "name": "Water clarity",
+          "description": "Manual clarity note such as clear, cloudy, or green."
+        },
+        "notes": {
+          "name": "Notes",
+          "description": "Optional free-form note."
+        }
+      }
+    },
+    "log_chemical_addition": {
+      "name": "Log chemical addition",
+      "description": "Append a manual chemical-addition record.",
+      "fields": {
+        "pool_id": {
+          "name": "Pool ID",
+          "description": "Pool identifier. Leave blank for the only configured pool."
+        },
+        "event_timestamp": {
+          "name": "Event timestamp",
+          "description": "When the addition happened. Leave blank to use now."
+        },
+        "source": {
+          "name": "Source",
+          "description": "Optional caller label such as dashboard, service, or agent."
+        },
+        "chemical": {
+          "name": "Chemical",
+          "description": "Human-entered chemical name or type."
+        },
+        "amount": {
+          "name": "Amount",
+          "description": "Human-entered amount."
+        },
+        "unit": {
+          "name": "Unit",
+          "description": "Unit for the amount."
+        },
+        "notes": {
+          "name": "Notes",
+          "description": "Optional free-form note."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "latest_water_test_timestamp": {
+        "name": "Latest water test timestamp"
+      },
+      "latest_chemical_addition_timestamp": {
+        "name": "Latest chemical addition timestamp"
+      },
+      "latest_free_chlorine": {
+        "name": "Latest free chlorine"
+      },
+      "latest_ph": {
+        "name": "Latest pH"
+      },
+      "latest_total_alkalinity": {
+        "name": "Latest total alkalinity"
+      },
+      "latest_cya": {
+        "name": "Latest CYA/stabilizer"
+      },
+      "latest_water_clarity": {
+        "name": "Latest water clarity"
+      },
+      "latest_chemical_addition_summary": {
+        "name": "Latest chemical addition summary"
+      }
+    }
+  }
+}

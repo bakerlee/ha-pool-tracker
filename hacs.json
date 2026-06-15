@@ -1,0 +1,6 @@
+{
+  "name": "Pool Tracker",
+  "render_readme": true,
+  "domains": ["sensor"],
+  "homeassistant": "2026.6.0"
+}

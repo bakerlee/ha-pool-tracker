@@ -1,0 +1,90 @@
+log_water_test:
+  fields:
+    pool_id:
+      example: pool
+      selector:
+        text:
+    event_timestamp:
+      example: "2026-06-15T16:30:00-05:00"
+      selector:
+        datetime:
+    source:
+      default: service
+      example: agent
+      selector:
+        text:
+    free_chlorine:
+      example: 3.2
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: ppm
+    ph:
+      example: 7.2
+      selector:
+        number:
+          min: 0
+          max: 14
+          mode: box
+    total_alkalinity:
+      example: 80
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: ppm
+    cya:
+      example: 40
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: ppm
+    water_clarity:
+      example: clear
+      selector:
+        text:
+    notes:
+      example: Taylor drop test after evening swim.
+      selector:
+        text:
+          multiline: true
+
+log_chemical_addition:
+  fields:
+    pool_id:
+      example: pool
+      selector:
+        text:
+    event_timestamp:
+      example: "2026-06-15T16:30:00-05:00"
+      selector:
+        datetime:
+    source:
+      default: service
+      example: agent
+      selector:
+        text:
+    chemical:
+      required: true
+      example: dichlor
+      selector:
+        text:
+    amount:
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 0
+          mode: box
+    unit:
+      required: true
+      example: Tbsp
+      selector:
+        text:
+    notes:
+      example: Human-entered record only.
+      selector:
+        text:
+          multiline: true
