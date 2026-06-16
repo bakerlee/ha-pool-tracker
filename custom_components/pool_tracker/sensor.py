@@ -20,9 +20,17 @@ from homeassistant.const import (
     STATE_UNKNOWN,
     UnitOfTemperature,
 )
-from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.core import (
+    Event,
+    EventStateChangedData,
+    HomeAssistant,
+    SupportsResponse,
+    callback,
+)
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_platform
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
@@ -35,8 +43,9 @@ from .const import (
     DOMAIN,
     NUMERIC_WATER_READINGS,
     POOL_CONTEXT_ENTITY_KEYS,
-    RECORD_TYPE_CHEMICAL_ADDITION,
     RECORD_TYPE_WATER_TEST,
+    SERVICE_GET_PREDICTION,
+    WATER_CLARITY_OPTIONS,
     WATER_READING_CYA,
     WATER_READING_FREE_CHLORINE,
     WATER_READING_PH,
@@ -44,8 +53,8 @@ from .const import (
     WATER_READING_WATER_CLARITY,
     WATER_TESTING_METHOD,
 )
-from .models import PoolRecord, chemical_summary, parse_utc
-from .prediction import PredictionContext, build_prediction
+from .models import PoolRecord, parse_utc
+from .prediction import PredictionContext, ReadingPrediction, build_prediction
 
 PARALLEL_UPDATES = 0
 
@@ -85,6 +94,14 @@ def _latest_reading_value(entity: PoolTrackerSensor, reading: str) -> Any:
     return latest[1]["value"]
 
 
+def _latest_clarity_value(entity: PoolTrackerSensor) -> str | None:
+    value = _latest_reading_value(entity, WATER_READING_WATER_CLARITY)
+    if value is None:
+        return None
+    normalized = str(value).strip().lower()
+    return normalized if normalized in WATER_CLARITY_OPTIONS else "other"
+
+
 def _latest_reading_attrs(
     entity: PoolTrackerSensor, reading: str
 ) -> dict[str, Any] | None:
@@ -106,6 +123,8 @@ def _prediction_attrs(entity: PoolTrackerSensor, reading: str) -> dict[str, Any]
     prediction = entity.prediction(reading)
     if prediction is None:
         return None
+    # The full series/actuals are intentionally kept out of state attributes to
+    # avoid recorder bloat; fetch them on demand via the get_prediction service.
     return {
         "unit": prediction.unit,
         "as_of": prediction.as_of,
@@ -114,6 +133,21 @@ def _prediction_attrs(entity: PoolTrackerSensor, reading: str) -> dict[str, Any]
         "uncertainty": prediction.uncertainty,
         "lower_bound": prediction.lower_bound,
         "upper_bound": prediction.upper_bound,
+        "model_inputs": prediction.model_inputs,
+    }
+
+
+def _prediction_response(prediction: ReadingPrediction) -> dict[str, Any]:
+    return {
+        "reading": prediction.reading,
+        "unit": prediction.unit,
+        "as_of": prediction.as_of,
+        "value": prediction.value,
+        "uncertainty": prediction.uncertainty,
+        "lower_bound": prediction.lower_bound,
+        "upper_bound": prediction.upper_bound,
+        "last_actual_value": prediction.last_actual_value,
+        "last_actual_timestamp": prediction.last_actual_timestamp,
         "model_inputs": prediction.model_inputs,
         "series": prediction.series,
         "actuals": prediction.actuals,
@@ -136,23 +170,6 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
         ),
         attr_fn=lambda entity: _latest_record_entity_attrs(
             entity, RECORD_TYPE_WATER_TEST
-        ),
-    ),
-    PoolSensorDescription(
-        key="last_chemical_addition",
-        translation_key="last_chemical_addition",
-        device_class=SensorDeviceClass.TIMESTAMP,
-        value_fn=lambda entity: (
-            parse_utc(record["event_timestamp"])
-            if (
-                record := entity.store.latest_record(
-                    RECORD_TYPE_CHEMICAL_ADDITION, entity.pool_id
-                )
-            )
-            else None
-        ),
-        attr_fn=lambda entity: _latest_record_entity_attrs(
-            entity, RECORD_TYPE_CHEMICAL_ADDITION
         ),
     ),
     PoolSensorDescription(
@@ -202,21 +219,11 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
     PoolSensorDescription(
         key="water_clarity",
         translation_key="water_clarity",
-        value_fn=lambda entity: _latest_reading_value(
-            entity, WATER_READING_WATER_CLARITY
-        ),
+        device_class=SensorDeviceClass.ENUM,
+        options=list(WATER_CLARITY_OPTIONS),
+        value_fn=_latest_clarity_value,
         attr_fn=lambda entity: _latest_reading_attrs(
             entity, WATER_READING_WATER_CLARITY
-        ),
-    ),
-    PoolSensorDescription(
-        key="chemical_addition_summary",
-        translation_key="chemical_addition_summary",
-        value_fn=lambda entity: chemical_summary(
-            entity.store.latest_record(RECORD_TYPE_CHEMICAL_ADDITION, entity.pool_id)
-        ),
-        attr_fn=lambda entity: _latest_record_entity_attrs(
-            entity, RECORD_TYPE_CHEMICAL_ADDITION
         ),
     ),
     *(
@@ -224,7 +231,6 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
             key=f"{reading}_prediction",
             translation_key=f"{reading}_prediction",
             native_unit_of_measurement="pH" if reading == WATER_READING_PH else "ppm",
-            state_class=SensorStateClass.MEASUREMENT,
             suggested_display_precision=2,
             value_fn=lambda entity, prediction_reading=reading: _prediction_value(
                 entity, prediction_reading
@@ -242,9 +248,15 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Pool Tracker sensors."""
+    entity_platform.async_get_current_platform().async_register_entity_service(
+        SERVICE_GET_PREDICTION,
+        None,
+        "async_get_prediction",
+        supports_response=SupportsResponse.ONLY,
+    )
     runtime = entry.runtime_data
     async_add_entities(
         PoolTrackerSensor(entry, pool_id, pool_name, description)
@@ -272,11 +284,13 @@ class PoolTrackerSensor(SensorEntity):
         self.pool_name = pool_name
         self.store = entry.runtime_data.store
         self._entry = entry
+        self._prediction_cache: dict[str, ReadingPrediction | None] = {}
         self._attr_unique_id = f"{entry.entry_id}_{pool_id}_{description.key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, pool_id)},
             name=pool_name,
             manufacturer="Pool Tracker",
+            entry_type=DeviceEntryType.SERVICE,
         )
 
     async def async_added_to_hass(self) -> None:
@@ -294,10 +308,12 @@ class PoolTrackerSensor(SensorEntity):
 
     @callback
     def _handle_store_update(self) -> None:
+        self._prediction_cache.clear()
         self.async_write_ha_state()
 
     @callback
     def _handle_context_update(self, event: Event[EventStateChangedData]) -> None:
+        self._prediction_cache.clear()
         self.async_write_ha_state()
 
     @property
@@ -310,14 +326,33 @@ class PoolTrackerSensor(SensorEntity):
         """Return source record metadata."""
         return self.entity_description.attr_fn(self)
 
-    def prediction(self, reading: str):
-        """Return the current prediction for a numeric water reading."""
-        return build_prediction(
-            self.store.records(self.pool_id),
-            reading,
-            pool_profile=self._pool_profile,
-            context=self._prediction_context(),
-        )
+    def prediction(self, reading: str) -> ReadingPrediction | None:
+        """Return the current prediction for a numeric water reading.
+
+        The result is cached until the next store or context update so that the
+        ``native_value`` and ``extra_state_attributes`` reads within a single
+        state write share one (relatively expensive) computation.
+        """
+        if reading not in self._prediction_cache:
+            self._prediction_cache[reading] = build_prediction(
+                self.store.records(self.pool_id),
+                reading,
+                pool_profile=self._pool_profile,
+                context=self._prediction_context(),
+            )
+        return self._prediction_cache[reading]
+
+    async def async_get_prediction(self) -> dict[str, Any]:
+        """Return the full prediction series for this prediction sensor."""
+        reading = self.entity_description.prediction_reading
+        if not reading:
+            raise HomeAssistantError(
+                "get_prediction is only supported on prediction sensors."
+            )
+        prediction = self.prediction(reading)
+        if prediction is None:
+            return {"prediction": None}
+        return {"prediction": _prediction_response(prediction)}
 
     @property
     def _pool_profile(self) -> dict[str, Any]:

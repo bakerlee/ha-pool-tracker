@@ -16,13 +16,11 @@ def test_sensor_descriptions_use_clean_entity_keys() -> None:
     """Sensors use conventional names and reserve last_* for event timestamps."""
     expected_keys = [
         "last_water_test",
-        "last_chemical_addition",
         "free_chlorine",
         "ph",
         "total_alkalinity",
         "cya",
         "water_clarity",
-        "chemical_addition_summary",
         "free_chlorine_prediction",
         "ph_prediction",
         "total_alkalinity_prediction",
@@ -35,13 +33,28 @@ def test_sensor_descriptions_use_clean_entity_keys() -> None:
     ] == expected_keys
 
 
-def test_sensor_descriptions_follow_push_text_semantics() -> None:
-    """Push sensors should not poll, and clarity remains free-form text."""
+def test_water_clarity_is_an_enum_sensor() -> None:
+    """Clarity is a bounded enum, not a free-text state."""
+    from homeassistant.components.sensor import SensorDeviceClass
+
     clarity = next(
         description
         for description in SENSOR_DESCRIPTIONS
         if description.key == "water_clarity"
     )
 
-    assert clarity.device_class is None
+    assert clarity.device_class is SensorDeviceClass.ENUM
+    assert clarity.options == ["clear", "hazy", "cloudy", "green", "other"]
     assert PARALLEL_UPDATES == 0
+
+
+def test_prediction_sensors_have_no_measurement_state_class() -> None:
+    """Modeled predictions must not flow into long-term statistics."""
+    predictions = [
+        description
+        for description in SENSOR_DESCRIPTIONS
+        if description.key.endswith("_prediction")
+    ]
+
+    assert predictions
+    assert all(description.state_class is None for description in predictions)

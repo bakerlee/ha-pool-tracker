@@ -128,15 +128,27 @@
           "description": "Optional free-form note."
         }
       }
+    },
+    "get_prediction": {
+      "name": "Get prediction",
+      "description": "Return the full prediction series, actuals, and model inputs for a prediction sensor.",
+      "fields": {
+        "entity_id": {
+          "name": "Prediction sensor",
+          "description": "The prediction sensor to return the full series for."
+        }
+      }
     }
   },
   "entity": {
+    "event": {
+      "chemical_addition": {
+        "name": "Chemical addition"
+      }
+    },
     "sensor": {
       "last_water_test": {
         "name": "Last water test"
-      },
-      "last_chemical_addition": {
-        "name": "Last chemical addition"
       },
       "free_chlorine": {
         "name": "Free chlorine"
@@ -151,10 +163,14 @@
         "name": "CYA/stabilizer"
       },
       "water_clarity": {
-        "name": "Water clarity"
-      },
-      "chemical_addition_summary": {
-        "name": "Chemical addition summary"
+        "name": "Water clarity",
+        "state": {
+          "clear": "Clear",
+          "hazy": "Hazy",
+          "cloudy": "Cloudy",
+          "green": "Green",
+          "other": "Other"
+        }
       },
       "free_chlorine_prediction": {
         "name": "Free chlorine prediction"

@@ -25,6 +25,7 @@ from .const import (
     PLATFORMS,
     SERVICE_LOG_CHEMICAL_ADDITION,
     SERVICE_LOG_WATER_TEST,
+    WATER_CLARITY_OPTIONS,
     WATER_READING_CYA,
     WATER_READING_FREE_CHLORINE,
     WATER_READING_PH,
@@ -100,7 +101,9 @@ def _water_test_service_schema():
                 vol.Optional(WATER_READING_PH): _number(0, 14),
                 vol.Optional(WATER_READING_TOTAL_ALKALINITY): _number(0),
                 vol.Optional(WATER_READING_CYA): _number(0),
-                vol.Optional(WATER_READING_WATER_CLARITY): cv.string,
+                vol.Optional(WATER_READING_WATER_CLARITY): vol.In(
+                    WATER_CLARITY_OPTIONS
+                ),
                 vol.Optional(WATER_TESTING_METHOD): vol.In(WATER_TESTING_METHODS),
             },
             _validate_water_test_content,

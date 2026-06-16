@@ -44,7 +44,13 @@ log_water_test:
     water_clarity:
       example: clear
       selector:
-        text:
+        select:
+          options:
+            - clear
+            - hazy
+            - cloudy
+            - green
+            - other
     testing_method:
       example: strips
       selector:
@@ -99,3 +105,17 @@ log_chemical_addition:
       selector:
         text:
           multiline: true
+
+get_prediction:
+  target:
+    entity:
+      integration: pool_tracker
+      domain: sensor
+  fields:
+    entity_id:
+      required: true
+      example: sensor.pool_free_chlorine_prediction
+      selector:
+        entity:
+          integration: pool_tracker
+          domain: sensor

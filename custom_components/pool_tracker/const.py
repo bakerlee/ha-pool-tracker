@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "pool_tracker"
-PLATFORMS = ["sensor"]
+PLATFORMS = ["event", "sensor"]
 
 CONF_POOLS = "pools"
 CONF_POOL_ID = "pool_id"
@@ -28,8 +28,10 @@ DEFAULT_TESTING_METHOD = "strips"
 
 SERVICE_LOG_WATER_TEST = "log_water_test"
 SERVICE_LOG_CHEMICAL_ADDITION = "log_chemical_addition"
+SERVICE_GET_PREDICTION = "get_prediction"
 
 EVENT_RECORD_CREATED = f"{DOMAIN}_record_created"
+EVENT_TYPE_CHEMICAL_ADDITION = "chemical_addition"
 
 RECORD_TYPE_WATER_TEST = "water_test"
 RECORD_TYPE_CHEMICAL_ADDITION = "chemical_addition"
@@ -40,6 +42,8 @@ WATER_READING_TOTAL_ALKALINITY = "total_alkalinity"
 WATER_READING_CYA = "cya"
 WATER_READING_WATER_CLARITY = "water_clarity"
 WATER_TESTING_METHOD = "testing_method"
+
+WATER_CLARITY_OPTIONS = ("clear", "hazy", "cloudy", "green", "other")
 
 NUMERIC_WATER_READINGS = (
     WATER_READING_FREE_CHLORINE,

@@ -34,6 +34,15 @@ def test_water_test_service_validation_rejects_unknown_testing_method() -> None:
         _water_test_service_schema()({"ph": "7.2", "testing_method": "guessing"})
 
 
+def test_water_test_service_validation_constrains_water_clarity() -> None:
+    """Water clarity is a bounded enum, not free-form text."""
+    data = _water_test_service_schema()({"water_clarity": "cloudy"})
+    assert data["water_clarity"] == "cloudy"
+
+    with pytest.raises(vol.Invalid):
+        _water_test_service_schema()({"water_clarity": "slightly murky"})
+
+
 def test_chemical_addition_service_validation_requires_core_fields() -> None:
     """Chemical additions require chemical, amount, and unit."""
     schema = _chemical_addition_service_schema()

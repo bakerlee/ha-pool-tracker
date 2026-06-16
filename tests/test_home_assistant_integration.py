@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 pytest.importorskip("homeassistant")
@@ -19,6 +21,7 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_SUNLIGHT_ENTITY_ID,
     CONF_TYPICALLY_COVERED,
     DOMAIN,
+    SERVICE_GET_PREDICTION,
     SERVICE_LOG_CHEMICAL_ADDITION,
     SERVICE_LOG_WATER_TEST,
     WATER_TESTING_METHOD,
@@ -193,8 +196,13 @@ async def test_prediction_sensor_updates_after_water_test_and_context_change(
     assert state is not None
     assert state.state != "unknown"
     assert state.attributes["model_inputs"]["sunlight"] == 0.0
-    assert state.attributes["series"]
-    assert state.attributes["actuals"]
+    # The full series/actuals live behind the service, not in state attributes.
+    assert "series" not in state.attributes
+    assert "actuals" not in state.attributes
+
+    prediction = await _get_prediction(hass, state.entity_id)
+    assert prediction["series"]
+    assert prediction["actuals"]
 
     hass.states.async_set("sensor.pool_sunlight", "100")
     await hass.async_block_till_done()
@@ -273,11 +281,59 @@ async def test_prediction_sensor_applies_chlorine_addition_without_prior_reading
     state = _sensor_state(hass, "free_chlorine_prediction")
     assert state is not None
     assert float(state.state) > 0
-    assert state.attributes["actuals"] == []
     assert (
         state.attributes["model_inputs"]["baseline"]
         == "assumed_zero_no_free_chlorine_reading"
     )
+
+    prediction = await _get_prediction(hass, state.entity_id)
+    assert prediction["actuals"] == []
+
+
+async def test_chemical_addition_event_entity_fires(hass) -> None:
+    """Logging a chemical addition triggers the pool's event entity."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id="pool",
+        data={CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"},
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    event_state = next(
+        state
+        for state in hass.states.async_all("event")
+        if state.entity_id.endswith("chemical_addition")
+    )
+    assert event_state.state in ("unknown", "unavailable")
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_CHEMICAL_ADDITION,
+        {"chemical": "dichlor", "amount": 1, "unit": "Tbsp"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    updated = hass.states.get(event_state.entity_id)
+    assert updated is not None
+    assert updated.attributes["event_type"] == "chemical_addition"
+    assert updated.attributes["chemical"] == "dichlor"
+    assert updated.attributes["summary"] == "dichlor: 1 Tbsp"
+
+
+async def _get_prediction(hass, entity_id: str) -> dict[str, Any]:
+    response = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_GET_PREDICTION,
+        {"entity_id": entity_id},
+        blocking=True,
+        return_response=True,
+    )
+    return response[entity_id]["prediction"]
 
 
 def _sensor_state(hass, suffix: str):
