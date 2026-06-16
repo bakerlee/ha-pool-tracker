@@ -24,10 +24,10 @@ from .const import (
 )
 from .models import PoolRecord, parse_utc
 
-DEFAULT_STEP = timedelta(hours=6)
+DEFAULT_STEP = timedelta(hours=1)
 DEFAULT_HISTORY = timedelta(days=14)
 DEFAULT_FUTURE = timedelta(days=3)
-MAX_SERIES_POINTS = 80
+MAX_SERIES_POINTS = 500
 MAX_ACTUAL_POINTS = 40
 MAX_CHEMICAL_POINTS = 40
 DEFAULT_POOL_VOLUME_GAL = 10000

@@ -81,7 +81,7 @@ Each prediction sensor state is the current estimated value. Attributes include:
 - `upper_bound`
 - `model_inputs`
 
-Prediction sensor attributes include `actuals`, `series`, and `chemical_additions` for charting. `actuals` contains recent measured readings as chart points. `series` contains a bounded prediction line with `value`, `lower_bound`, `upper_bound`, `uncertainty`, and `is_actual`. `chemical_additions` contains recent chemical-event markers with the event timestamp, summary, and a chart `value` when the event can be placed against the current reading prediction. The `pool_tracker.get_prediction` action returns the same chart data for callers that prefer a service response. Uncertainty is zero at actual reading timestamps and grows as time passes after a test. When a later reading disagrees with the prior estimate, future uncertainty increases.
+Prediction sensor attributes include `actuals`, `series`, and `chemical_additions` for charting. `actuals` contains recent measured readings as chart points. `series` contains an hourly bounded prediction line with `value`, `lower_bound`, `upper_bound`, `uncertainty`, and `is_actual`. `chemical_additions` contains recent chemical-event markers with the event timestamp, summary, and a chart `value` when the event can be placed against the current reading prediction. The `pool_tracker.get_prediction` action returns the same chart data for callers that prefer a service response. Uncertainty is zero at actual reading timestamps and grows as time passes after a test. When a later reading disagrees with the prior estimate, future uncertainty increases.
 
 The v1 model is intentionally transparent and resilient to sparse data:
 

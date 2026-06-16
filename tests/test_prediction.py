@@ -49,6 +49,28 @@ def test_single_reading_decays_and_uncertainty_grows() -> None:
     assert prediction.lower_bound < prediction.value < prediction.upper_bound
 
 
+def test_prediction_series_uses_hourly_default_points() -> None:
+    """Default chart data is granular enough for smooth HA-style graphs."""
+    start = datetime(2026, 6, 10, 12, tzinfo=UTC)
+    prediction = build_prediction(
+        [
+            build_water_test_record(
+                pool_id="pool",
+                readings={WATER_READING_FREE_CHLORINE: 3.0},
+                event_timestamp=start,
+            )
+        ],
+        WATER_READING_FREE_CHLORINE,
+        now=start + timedelta(hours=3),
+        future=timedelta(0),
+    )
+
+    assert prediction is not None
+    assert [point["timestamp"] for point in prediction.series] == [
+        (start + timedelta(hours=offset)).isoformat() for offset in range(4)
+    ]
+
+
 def test_actual_reading_resets_uncertainty_to_zero() -> None:
     """Actual reading points are exact anchors in the prediction series."""
     start = datetime(2026, 6, 10, 12, tzinfo=UTC)

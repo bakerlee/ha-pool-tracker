@@ -9,14 +9,14 @@ const READING_LABELS = {
 };
 
 const COLORS = {
-  prediction: "#1a73e8",
-  uncertainty: "rgba(26, 115, 232, 0.16)",
-  lowerUpper: "#9aa0a6",
-  actual: "#188038",
-  chemical: "#fa7b17",
-  grid: "rgba(95, 99, 104, 0.24)",
+  prediction: "var(--primary-color)",
+  uncertainty: "var(--primary-color)",
+  actual: "var(--success-color, #43a047)",
+  chemical: "var(--warning-color, #ffa600)",
+  grid: "var(--divider-color)",
   text: "var(--primary-text-color)",
   secondary: "var(--secondary-text-color)",
+  card: "var(--ha-card-background, var(--card-background-color))",
 };
 
 class PoolTrackerGraphCard extends HTMLElement {
@@ -101,29 +101,29 @@ class PoolTrackerGraphCard extends HTMLElement {
       <div class="header">
         <div>
           <div class="title">${escapeHtml(this._config.title || "Pool Tracker")}</div>
-          <div class="subtitle">${escapeHtml(stateTitle(selected))}</div>
+          <div class="subtitle">${escapeHtml(cleanTitle(selected))}</div>
         </div>
-        <div class="current">${escapeHtml(stateValue(selected))}</div>
+        <div class="state-block">
+          <div class="current">${escapeHtml(stateValue(selected))}</div>
+          <div class="state-label">Predicted now</div>
+        </div>
       </div>
       ${states.length > 1 ? this._renderTabs(states, selected) : ""}
       ${renderChart(selected)}
-      <div class="legend">
-        <span><i class="line prediction"></i>Prediction</span>
-        <span><i class="band"></i>Uncertainty</span>
-        <span><i class="dot actual"></i>Tests</span>
-        <span><i class="diamond chemical"></i>Chemicals</span>
-      </div>
+      ${renderMeta(selected)}
     `;
   }
 
   _renderTabs(states, selected) {
     return `
-      <div class="tabs">
+      <div class="tabs" role="tablist">
         ${states
           .map(
             (state) => `
               <button
                 type="button"
+                role="tab"
+                aria-selected="${state.entity_id === selected.entity_id}"
                 data-entity="${escapeHtml(state.entity_id)}"
                 class="${state.entity_id === selected.entity_id ? "selected" : ""}"
               >
@@ -194,8 +194,8 @@ function renderChart(state) {
   }
 
   const width = 720;
-  const height = 260;
-  const margin = { top: 18, right: 18, bottom: 34, left: 44 };
+  const height = 238;
+  const margin = { top: 14, right: 14, bottom: 30, left: 42 };
   const allTimes = [
     ...series.map((point) => point.timestamp),
     ...actuals.map((point) => point.timestamp),
@@ -217,6 +217,7 @@ function renderChart(state) {
   const valuePad = Math.max((maxValue - minValue) * 0.12, 0.1);
   const yMin = Math.max(0, minValue - valuePad);
   const yMax = maxValue + valuePad;
+  const currentTime = new Date(state.attributes.as_of || Date.now()).getTime();
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
   const x = (timestamp) => {
@@ -236,6 +237,7 @@ function renderChart(state) {
   const lowerPath = pathFor(series, x, (point) => y(point.lower_bound));
   const upperPath = pathFor(series, x, (point) => y(point.upper_bound));
   const predictionPath = pathFor(series, x, (point) => y(point.value));
+  const actualPath = pathFor(actuals, x, (point) => y(point.value));
   const bandPath = [
     ...series.map((point, index) =>
       `${index === 0 ? "M" : "L"} ${x(point.timestamp).toFixed(1)} ${y(
@@ -248,11 +250,21 @@ function renderChart(state) {
     "Z",
   ].join(" ");
   const ticks = valueTicks(yMin, yMax);
+  const xLabels = timeLabels(minTime, maxTime);
+  const nowX =
+    currentTime >= minTime && currentTime <= maxTime
+      ? margin.left + ((currentTime - minTime) / (maxTime - minTime)) * chartWidth
+      : undefined;
 
   return `
     <svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(
       stateTitle(state),
     )} prediction chart">
+      <defs>
+        <clipPath id="plot-area-${escapeHtml(svgId(state.entity_id))}">
+          <rect x="${margin.left}" y="${margin.top}" width="${chartWidth}" height="${chartHeight}"></rect>
+        </clipPath>
+      </defs>
       ${ticks
         .map(
           (tick) => `
@@ -265,36 +277,56 @@ function renderChart(state) {
           `,
         )
         .join("")}
-      <path class="uncertainty" d="${bandPath}"></path>
-      <path class="bound" d="${upperPath}"></path>
-      <path class="bound" d="${lowerPath}"></path>
-      <path class="prediction-line" d="${predictionPath}"></path>
-      ${actuals
-        .map(
-          (point) => `
-            <circle class="actual-point" cx="${x(point.timestamp).toFixed(
-              1,
-            )}" cy="${y(point.value).toFixed(1)}" r="5">
-              <title>${escapeHtml(`Test: ${formatNumber(point.value)}`)}</title>
-            </circle>
-          `,
-        )
-        .join("")}
-      ${chemicals
-        .map((point) => {
-          const cx = x(point.timestamp);
-          const cy = y(point.value);
-          return `
-            <path class="chemical-point" d="M ${cx.toFixed(1)} ${(cy - 7).toFixed(
-              1,
-            )} L ${(cx + 7).toFixed(1)} ${cy.toFixed(1)} L ${cx.toFixed(1)} ${(
-              cy + 7
-            ).toFixed(1)} L ${(cx - 7).toFixed(1)} ${cy.toFixed(1)} Z">
-              <title>${escapeHtml(point.summary || "Chemical addition")}</title>
-            </path>
-          `;
-        })
-        .join("")}
+      <text class="time-axis" x="${margin.left}" y="${height - 6}" text-anchor="start">${escapeHtml(
+        xLabels.start,
+      )}</text>
+      <text class="time-axis" x="${width - margin.right}" y="${height - 6}" text-anchor="end">${escapeHtml(
+        xLabels.end,
+      )}</text>
+      <g clip-path="url(#plot-area-${escapeHtml(svgId(state.entity_id))})">
+        <path class="uncertainty" d="${bandPath}"></path>
+        <path class="bound" d="${upperPath}"></path>
+        <path class="bound" d="${lowerPath}"></path>
+        ${
+          actualPath
+            ? `<path class="actual-line" d="${actualPath}"></path>`
+            : ""
+        }
+        ${
+          nowX === undefined
+            ? ""
+            : `<line class="now-line" x1="${nowX.toFixed(1)}" x2="${nowX.toFixed(
+                1,
+              )}" y1="${margin.top}" y2="${height - margin.bottom}"></line>`
+        }
+        <path class="prediction-line" d="${predictionPath}"></path>
+        ${actuals
+          .map(
+            (point) => `
+              <circle class="actual-point" cx="${x(point.timestamp).toFixed(
+                1,
+              )}" cy="${y(point.value).toFixed(1)}" r="3.6">
+                <title>${escapeHtml(`Test: ${formatNumber(point.value)}`)}</title>
+              </circle>
+            `,
+          )
+          .join("")}
+        ${chemicals
+          .map((point) => {
+            const cx = x(point.timestamp);
+            const cy = y(point.value);
+            return `
+              <path class="chemical-point" d="M ${cx.toFixed(1)} ${(cy - 5).toFixed(
+                1,
+              )} L ${(cx + 5).toFixed(1)} ${cy.toFixed(1)} L ${cx.toFixed(1)} ${(
+                cy + 5
+              ).toFixed(1)} L ${(cx - 5).toFixed(1)} ${cy.toFixed(1)} Z">
+                <title>${escapeHtml(point.summary || "Chemical addition")}</title>
+              </path>
+            `;
+          })
+          .join("")}
+      </g>
     </svg>
   `;
 }
@@ -310,6 +342,26 @@ function pathFor(points, x, y) {
     .join(" ");
 }
 
+function renderMeta(state) {
+  const attrs = state.attributes || {};
+  const actuals = attrs.actuals || [];
+  const chemicals = attrs.chemical_additions || [];
+  const uncertainty =
+    attrs.uncertainty === undefined ? "" : `±${formatNumber(attrs.uncertainty)}`;
+  const unit = attrs.unit || attrs.unit_of_measurement || "";
+
+  return `
+    <div class="meta-row">
+      <span><i class="swatch prediction"></i>Prediction</span>
+      <span><i class="swatch uncertainty"></i>${escapeHtml(
+        uncertainty ? `${uncertainty}${unit ? ` ${unit}` : ""}` : "Uncertainty",
+      )}</span>
+      <span><i class="swatch actual"></i>${actuals.length} tests</span>
+      <span><i class="swatch chemical"></i>${chemicals.length} chemicals</span>
+    </div>
+  `;
+}
+
 function valueTicks(min, max) {
   const ticks = [];
   const step = (max - min) / 4;
@@ -323,10 +375,14 @@ function stateTitle(state) {
   return state?.attributes?.friendly_name || state?.entity_id || "Pool reading";
 }
 
+function cleanTitle(state) {
+  return stateTitle(state).replace(" (Predicted)", "");
+}
+
 function shortTitle(state) {
   const entityId = state?.entity_id || "";
   const reading = Object.keys(READING_LABELS).find((key) => entityId.includes(key));
-  return reading ? READING_LABELS[reading] : stateTitle(state).replace(" (Predicted)", "");
+  return reading ? READING_LABELS[reading] : cleanTitle(state);
 }
 
 function stateValue(state) {
@@ -347,6 +403,21 @@ function formatNumber(value) {
   });
 }
 
+function timeLabels(minTime, maxTime) {
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  return {
+    start: formatter.format(new Date(minTime)),
+    end: formatter.format(new Date(maxTime)),
+  };
+}
+
+function svgId(value) {
+  return String(value).replaceAll(/[^a-zA-Z0-9_-]/g, "-");
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -358,9 +429,12 @@ function escapeHtml(value) {
 
 function styles() {
   return `
+    :host {
+      --pool-tracker-chart-height: 238px;
+    }
     ha-card {
       display: block;
-      padding: 16px;
+      padding: 0;
       overflow: hidden;
     }
     .header {
@@ -368,126 +442,153 @@ function styles() {
       align-items: flex-start;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 12px;
+      padding: 16px 16px 6px;
     }
     .title {
       color: ${COLORS.text};
-      font-size: 18px;
-      font-weight: 600;
+      font-size: var(--ha-font-size-l, 18px);
+      font-weight: var(--ha-font-weight-medium, 500);
       line-height: 1.2;
     }
     .subtitle {
       color: ${COLORS.secondary};
-      font-size: 13px;
-      margin-top: 3px;
+      font-size: var(--ha-font-size-s, 12px);
+      margin-top: 4px;
+    }
+    .state-block {
+      text-align: right;
     }
     .current {
       color: ${COLORS.text};
-      font-size: 22px;
-      font-weight: 600;
+      font-size: var(--ha-font-size-xl, 22px);
+      font-weight: var(--ha-font-weight-normal, 400);
       line-height: 1;
+      white-space: nowrap;
+    }
+    .state-label {
+      color: ${COLORS.secondary};
+      font-size: var(--ha-font-size-xs, 11px);
+      margin-top: 5px;
       white-space: nowrap;
     }
     .tabs {
       display: flex;
-      gap: 6px;
-      margin-bottom: 12px;
+      gap: 18px;
+      margin: 0 16px 4px;
       overflow-x: auto;
-      padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+    .tabs::-webkit-scrollbar {
+      display: none;
     }
     button {
       appearance: none;
-      border: 1px solid var(--divider-color);
-      background: var(--card-background-color);
-      color: ${COLORS.text};
-      border-radius: 6px;
+      background: transparent;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      color: ${COLORS.secondary};
       cursor: pointer;
       font: inherit;
-      min-height: 32px;
-      padding: 0 10px;
+      font-size: var(--ha-font-size-s, 12px);
+      min-height: 36px;
+      padding: 0;
       white-space: nowrap;
     }
     button.selected {
-      border-color: ${COLORS.prediction};
       color: ${COLORS.prediction};
-      font-weight: 600;
+      border-bottom-color: ${COLORS.prediction};
+      font-weight: var(--ha-font-weight-medium, 500);
     }
     .chart {
       display: block;
       width: 100%;
-      min-height: 260px;
+      height: var(--pool-tracker-chart-height);
+      margin-top: 2px;
     }
     .grid {
       stroke: ${COLORS.grid};
       stroke-width: 1;
+      opacity: 0.56;
     }
-    .axis {
+    .axis,
+    .time-axis {
       fill: ${COLORS.secondary};
       font-size: 11px;
+      opacity: 0.82;
     }
     .uncertainty {
       fill: ${COLORS.uncertainty};
+      opacity: 0.12;
       stroke: none;
     }
     .bound {
       fill: none;
-      stroke: ${COLORS.lowerUpper};
-      stroke-dasharray: 4 4;
+      stroke: ${COLORS.prediction};
+      stroke-width: 1;
+      opacity: 0.18;
+    }
+    .actual-line {
+      fill: none;
+      stroke: ${COLORS.actual};
       stroke-width: 1.5;
+      opacity: 0.34;
     }
     .prediction-line {
       fill: none;
       stroke: ${COLORS.prediction};
       stroke-linecap: round;
       stroke-linejoin: round;
-      stroke-width: 3;
+      stroke-width: 2.2;
+    }
+    .now-line {
+      stroke: ${COLORS.secondary};
+      stroke-dasharray: 2 4;
+      stroke-width: 1;
+      opacity: 0.28;
     }
     .actual-point {
       fill: ${COLORS.actual};
-      stroke: var(--card-background-color);
-      stroke-width: 2;
+      stroke: ${COLORS.card};
+      stroke-width: 1.5;
     }
     .chemical-point {
       fill: ${COLORS.chemical};
-      stroke: var(--card-background-color);
-      stroke-width: 2;
+      stroke: ${COLORS.card};
+      stroke-width: 1.5;
     }
-    .legend {
+    .meta-row {
       align-items: center;
       color: ${COLORS.secondary};
       display: flex;
       flex-wrap: wrap;
-      gap: 12px;
-      font-size: 12px;
-      margin-top: 8px;
+      gap: 10px 14px;
+      font-size: var(--ha-font-size-xs, 11px);
+      padding: 0 16px 16px;
     }
-    .legend span {
+    .meta-row span {
       align-items: center;
       display: inline-flex;
-      gap: 5px;
+      gap: 6px;
     }
-    .line,
-    .band,
-    .dot,
-    .diamond {
+    .swatch {
       display: inline-block;
-      height: 10px;
-      width: 10px;
+      height: 8px;
+      width: 8px;
     }
-    .line {
-      border-top: 3px solid ${COLORS.prediction};
+    .swatch.prediction {
+      border-top: 2px solid ${COLORS.prediction};
       height: 0;
-      width: 18px;
+      width: 14px;
     }
-    .band {
-      background: ${COLORS.uncertainty};
-      border: 1px solid ${COLORS.prediction};
+    .swatch.uncertainty {
+      background: ${COLORS.prediction};
+      opacity: 0.18;
     }
-    .dot {
+    .swatch.actual {
       background: ${COLORS.actual};
       border-radius: 50%;
     }
-    .diamond {
+    .swatch.chemical {
       background: ${COLORS.chemical};
       transform: rotate(45deg);
     }
