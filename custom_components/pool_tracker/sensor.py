@@ -38,6 +38,8 @@ from .const import (
     CONF_WEATHER_ENTITY_ID,
     DOMAIN,
     NUMERIC_WATER_READINGS,
+    RECORD_TYPE_CHEMICAL_ADDITION,
+    RECORD_TYPE_WATER_TEST,
     SERVICE_GET_PREDICTION,
     WATER_CLARITY_OPTIONS,
     WATER_READING_CYA,
@@ -47,10 +49,12 @@ from .const import (
     WATER_READING_WATER_CLARITY,
     WATER_TESTING_METHOD,
 )
-from .models import PoolRecord
+from .models import PoolRecord, chemical_summary, parse_utc
 from .prediction import PredictionContext, ReadingPrediction, build_prediction
 
 PARALLEL_UPDATES = 0
+RECENT_LOG_LIMIT = 8
+QUICK_CHEMICAL_LIMIT = 6
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -116,8 +120,13 @@ def _prediction_value(entity: PoolTrackerSensor, reading: str) -> Any:
 def _prediction_attrs(entity: PoolTrackerSensor, reading: str) -> dict[str, Any] | None:
     prediction = entity.prediction(reading)
     if prediction is None:
-        return None
-    return {
+        return _log_attrs(entity) | {
+            "unit": "pH" if reading == WATER_READING_PH else "ppm",
+            "series": [],
+            "actuals": [],
+            "chemical_additions": [],
+        }
+    return _log_attrs(entity) | {
         "unit": prediction.unit,
         "as_of": prediction.as_of,
         "last_actual_value": prediction.last_actual_value,
@@ -130,6 +139,92 @@ def _prediction_attrs(entity: PoolTrackerSensor, reading: str) -> dict[str, Any]
         "actuals": prediction.actuals,
         "chemical_additions": prediction.chemical_additions,
     }
+
+
+def _log_attrs(entity: PoolTrackerSensor) -> dict[str, Any]:
+    records = sorted(
+        entity.store.records(entity.pool_id),
+        key=lambda record: (
+            parse_utc(record["event_timestamp"]),
+            parse_utc(record["created_timestamp"]),
+            str(record["id"]),
+        ),
+    )
+    water_tests = [
+        _water_test_summary(record)
+        for record in records
+        if record.get("type") == RECORD_TYPE_WATER_TEST
+    ][-RECENT_LOG_LIMIT:]
+    chemical_additions = [
+        _chemical_addition_summary(record)
+        for record in records
+        if record.get("type") == RECORD_TYPE_CHEMICAL_ADDITION
+    ][-RECENT_LOG_LIMIT:]
+
+    return {
+        "pool_id": entity.pool_id,
+        "pool_name": entity.pool_name,
+        "recent_water_tests": list(reversed(water_tests)),
+        "recent_chemical_additions": list(reversed(chemical_additions)),
+        "quick_chemical_additions": _quick_chemical_additions(records),
+    }
+
+
+def _water_test_summary(record: PoolRecord) -> dict[str, Any]:
+    summary = {
+        "record_id": record["id"],
+        "event_timestamp": record["event_timestamp"],
+        "readings": {
+            reading: value.get("value")
+            for reading, value in record.get("readings", {}).items()
+        },
+    }
+    if testing_method := record.get(WATER_TESTING_METHOD):
+        summary[WATER_TESTING_METHOD] = testing_method
+    if notes := record.get("notes"):
+        summary["notes"] = notes
+    return summary
+
+
+def _chemical_addition_summary(record: PoolRecord) -> dict[str, Any]:
+    summary = {
+        "record_id": record["id"],
+        "event_timestamp": record["event_timestamp"],
+        "chemical": record.get("chemical"),
+        "amount": record.get("amount"),
+        "unit": record.get("unit"),
+        "summary": chemical_summary(record),
+    }
+    if notes := record.get("notes"):
+        summary["notes"] = notes
+    return summary
+
+
+def _quick_chemical_additions(records: list[PoolRecord]) -> list[dict[str, Any]]:
+    quick_adds: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for record in reversed(records):
+        if record.get("type") != RECORD_TYPE_CHEMICAL_ADDITION:
+            continue
+        key = (
+            str(record.get("chemical", "")).strip().lower(),
+            str(record.get("amount", "")),
+            str(record.get("unit", "")).strip().lower(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        quick_adds.append(
+            {
+                "chemical": record.get("chemical"),
+                "amount": record.get("amount"),
+                "unit": record.get("unit"),
+                "summary": chemical_summary(record),
+            }
+        )
+        if len(quick_adds) >= QUICK_CHEMICAL_LIMIT:
+            break
+    return quick_adds
 
 
 def _prediction_response(prediction: ReadingPrediction) -> dict[str, Any]:

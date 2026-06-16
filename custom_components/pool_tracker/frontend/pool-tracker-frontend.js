@@ -8,6 +8,50 @@ const READING_LABELS = {
   cya: "CYA/stabilizer",
 };
 
+const WATER_READING_FIELDS = [
+  { key: "free_chlorine", label: "Free chlorine", unit: "ppm", step: "0.1" },
+  { key: "ph", label: "pH", unit: "", step: "0.1", max: "14" },
+  { key: "total_alkalinity", label: "Total alkalinity", unit: "ppm", step: "1" },
+  { key: "cya", label: "CYA/stabilizer", unit: "ppm", step: "1" },
+];
+
+const WATER_CLARITY_OPTIONS = ["", "clear", "hazy", "cloudy", "green", "other"];
+const TESTING_METHOD_OPTIONS = [
+  "",
+  "strips",
+  "drop_test",
+  "digital_meter",
+  "photometer",
+  "pool_store",
+  "other",
+];
+const CHEMICAL_SUGGESTIONS = [
+  "dichlor",
+  "trichlor",
+  "calcium hypochlorite",
+  "liquid chlorine",
+  "bleach",
+  "muriatic acid",
+  "soda ash",
+  "baking soda",
+  "cyanuric acid",
+  "salt",
+  "algaecide",
+  "clarifier",
+  "calcium hardness increaser",
+];
+const UNIT_SUGGESTIONS = [
+  "g",
+  "kg",
+  "oz",
+  "lb",
+  "mL",
+  "L",
+  "Tbsp",
+  "fl. oz.",
+  "gal",
+];
+
 const COLORS = {
   prediction: "var(--primary-color)",
   uncertainty: "var(--primary-color)",
@@ -25,6 +69,8 @@ class PoolTrackerGraphCard extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._config = {};
     this._selectedEntityId = undefined;
+    this._message = undefined;
+    this._pending = false;
   }
 
   setConfig(config) {
@@ -84,8 +130,18 @@ class PoolTrackerGraphCard extends HTMLElement {
     for (const button of this.shadowRoot.querySelectorAll("button[data-entity]")) {
       button.addEventListener("click", () => {
         this._selectedEntityId = button.dataset.entity;
+        this._message = undefined;
         this._render();
       });
+    }
+    this.shadowRoot
+      .querySelector("form[data-log='water-test']")
+      ?.addEventListener("submit", (event) => this._submitWaterTest(event));
+    this.shadowRoot
+      .querySelector("form[data-log='chemical-addition']")
+      ?.addEventListener("submit", (event) => this._submitChemicalAddition(event));
+    for (const button of this.shadowRoot.querySelectorAll("button[data-quick-chemical]")) {
+      button.addEventListener("click", () => this._repeatChemicalAddition(button));
     }
   }
 
@@ -111,6 +167,7 @@ class PoolTrackerGraphCard extends HTMLElement {
       ${states.length > 1 ? this._renderTabs(states, selected) : ""}
       ${renderChart(selected)}
       ${renderMeta(selected)}
+      ${this._renderLogTools(selected)}
     `;
   }
 
@@ -134,6 +191,231 @@ class PoolTrackerGraphCard extends HTMLElement {
           .join("")}
       </div>
     `;
+  }
+
+  _renderLogTools(selected) {
+    const attrs = selected.attributes || {};
+    const quickAdds = attrs.quick_chemical_additions || [];
+    return `
+      <div class="log-tools">
+        ${this._message ? `<div class="message ${escapeHtml(this._message.type)}">${escapeHtml(this._message.text)}</div>` : ""}
+        <div class="quick-panel">
+          <div class="section-title">Quick chemicals</div>
+          <div class="quick-actions">
+            ${
+              quickAdds.length
+                ? quickAdds
+                    .map(
+                      (action) => `
+                        <button
+                          type="button"
+                          class="quick-button"
+                          data-quick-chemical
+                          data-chemical="${escapeHtml(action.chemical || "")}"
+                          data-amount="${escapeHtml(action.amount || "")}"
+                          data-unit="${escapeHtml(action.unit || "")}"
+                          ${this._pending ? "disabled" : ""}
+                        >
+                          <ha-icon icon="mdi:repeat"></ha-icon>
+                          <span>${escapeHtml(action.summary || chemicalSummary(action))}</span>
+                        </button>
+                      `,
+                    )
+                    .join("")
+                : `<span class="muted">Log a chemical addition to create a repeat.</span>`
+            }
+          </div>
+        </div>
+        <div class="forms">
+          ${this._renderWaterTestForm(attrs)}
+          ${this._renderChemicalForm(attrs)}
+        </div>
+      </div>
+    `;
+  }
+
+  _renderWaterTestForm(attrs) {
+    return `
+      <form class="log-form" data-log="water-test">
+        <div class="section-title">Log test</div>
+        ${poolHiddenInput(attrs)}
+        <div class="field-grid readings">
+          ${WATER_READING_FIELDS.map(
+            (field) => `
+              <label>
+                <span>${escapeHtml(field.label)}</span>
+                <input
+                  name="${escapeHtml(field.key)}"
+                  inputmode="decimal"
+                  type="number"
+                  min="0"
+                  ${field.max ? `max="${escapeHtml(field.max)}"` : ""}
+                  step="${escapeHtml(field.step)}"
+                  placeholder="${escapeHtml(field.unit)}"
+                >
+              </label>
+            `,
+          ).join("")}
+        </div>
+        <div class="field-grid">
+          <label>
+            <span>Clarity</span>
+            <select name="water_clarity">
+              ${WATER_CLARITY_OPTIONS.map(
+                (value) => `<option value="${escapeHtml(value)}">${escapeHtml(value ? labelFor(value) : "None")}</option>`,
+              ).join("")}
+            </select>
+          </label>
+          <label>
+            <span>Method</span>
+            <select name="testing_method">
+              ${TESTING_METHOD_OPTIONS.map(
+                (value) => `<option value="${escapeHtml(value)}">${escapeHtml(value ? labelFor(value) : "Pool default")}</option>`,
+              ).join("")}
+            </select>
+          </label>
+        </div>
+        <label>
+          <span>When</span>
+          <input name="event_timestamp" type="datetime-local">
+        </label>
+        <label>
+          <span>Notes</span>
+          <textarea name="notes" rows="2"></textarea>
+        </label>
+        <button type="submit" class="primary" ${this._pending ? "disabled" : ""}>
+          <ha-icon icon="mdi:test-tube"></ha-icon>
+          <span>Log test</span>
+        </button>
+      </form>
+    `;
+  }
+
+  _renderChemicalForm(attrs) {
+    return `
+      <form class="log-form" data-log="chemical-addition">
+        <div class="section-title">Log chemical</div>
+        ${poolHiddenInput(attrs)}
+        <div class="field-grid chemical-fields">
+          <label>
+            <span>Chemical</span>
+            <select name="chemical" required>
+              <option value="">Choose</option>
+              ${CHEMICAL_SUGGESTIONS.map(
+                (value) => `<option value="${escapeHtml(value)}">${escapeHtml(labelFor(value))}</option>`,
+              ).join("")}
+            </select>
+          </label>
+          <label>
+            <span>Amount</span>
+            <input name="amount" inputmode="decimal" type="number" min="0" step="any" required>
+          </label>
+          <label>
+            <span>Unit</span>
+            <select name="unit" required>
+              <option value="">Unit</option>
+              ${UNIT_SUGGESTIONS.map(
+                (value) => `<option value="${escapeHtml(value)}">${escapeHtml(labelFor(value))}</option>`,
+              ).join("")}
+            </select>
+          </label>
+        </div>
+        <label>
+          <span>When</span>
+          <input name="event_timestamp" type="datetime-local">
+        </label>
+        <label>
+          <span>Notes</span>
+          <textarea name="notes" rows="2"></textarea>
+        </label>
+        <button type="submit" class="primary" ${this._pending ? "disabled" : ""}>
+          <ha-icon icon="mdi:flask-plus-outline"></ha-icon>
+          <span>Log chemical</span>
+        </button>
+      </form>
+    `;
+  }
+
+  async _submitWaterTest(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const payload = payloadBase(form);
+    for (const field of WATER_READING_FIELDS) {
+      const value = form.elements[field.key]?.value;
+      if (value !== undefined && value !== "") {
+        payload[field.key] = Number(value);
+      }
+    }
+    for (const key of ["water_clarity", "testing_method", "notes", "event_timestamp"]) {
+      const value = form.elements[key]?.value?.trim();
+      if (value) {
+        payload[key] = value;
+      }
+    }
+    if (!hasWaterTestContent(payload)) {
+      this._setMessage("error", "Add at least one reading, clarity value, or note.");
+      return;
+    }
+    await this._callService("log_water_test", payload, "Water test logged.", form);
+  }
+
+  async _submitChemicalAddition(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const payload = payloadBase(form);
+    for (const key of ["chemical", "amount", "unit", "notes", "event_timestamp"]) {
+      const value = form.elements[key]?.value?.trim();
+      if (value) {
+        payload[key] = key === "amount" ? Number(value) : value;
+      }
+    }
+    await this._callService(
+      "log_chemical_addition",
+      payload,
+      "Chemical addition logged.",
+      form,
+    );
+  }
+
+  async _repeatChemicalAddition(button) {
+    const payload = {
+      source: "card",
+      chemical: button.dataset.chemical,
+      amount: Number(button.dataset.amount),
+      unit: button.dataset.unit,
+    };
+    const poolId = selectedPoolId(this.shadowRoot);
+    if (poolId) {
+      payload.pool_id = poolId;
+    }
+    await this._callService(
+      "log_chemical_addition",
+      payload,
+      `${chemicalSummary(payload)} logged.`,
+    );
+  }
+
+  async _callService(service, payload, successMessage, form) {
+    if (!this._hass) {
+      return;
+    }
+    this._pending = true;
+    this._message = undefined;
+    try {
+      await this._hass.callService("pool_tracker", service, payload);
+      form?.reset();
+      this._setMessage("success", successMessage);
+    } catch (error) {
+      this._setMessage("error", error?.message || "Unable to log record.");
+    } finally {
+      this._pending = false;
+      this._render();
+    }
+  }
+
+  _setMessage(type, text) {
+    this._message = { type, text };
+    this._render();
   }
 }
 
@@ -171,6 +453,68 @@ class PoolTrackerPanel extends HTMLElement {
     card.setConfig({ title: "Pool Tracker" });
     card.hass = this._hass;
   }
+}
+
+function poolHiddenInput(attrs) {
+  return attrs.pool_id
+    ? `<input type="hidden" name="pool_id" value="${escapeHtml(attrs.pool_id)}">`
+    : "";
+}
+
+function payloadBase(form) {
+  const payload = { source: "card" };
+  const poolId = form.elements.pool_id?.value?.trim();
+  if (poolId) {
+    payload.pool_id = poolId;
+  }
+  return payload;
+}
+
+function selectedPoolId(root) {
+  return root?.querySelector("input[name='pool_id']")?.value?.trim();
+}
+
+function hasWaterTestContent(payload) {
+  return [
+    "free_chlorine",
+    "ph",
+    "total_alkalinity",
+    "cya",
+    "water_clarity",
+    "notes",
+  ].some((key) => payload[key] !== undefined && payload[key] !== "");
+}
+
+function labelFor(value) {
+  const labels = {
+    drop_test: "Drop test",
+    digital_meter: "Digital meter",
+    pool_store: "Pool store",
+    swim_spa: "Swim spa",
+    salt_chlorine_generator: "Salt chlorine generator",
+    ph: "pH",
+    cya: "CYA/stabilizer",
+    mL: "Milliliters",
+    L: "Liters",
+    Tbsp: "Tablespoons",
+    "fl. oz.": "Fluid ounces",
+    g: "Grams",
+    kg: "Kilograms",
+    oz: "Ounces",
+    lb: "Pounds",
+    gal: "Gallons",
+  };
+  if (labels[value]) {
+    return labels[value];
+  }
+  return String(value)
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function chemicalSummary(action) {
+  const amount = formatNumber(action.amount);
+  return `${action.chemical}: ${amount} ${action.unit}`;
 }
 
 function isPredictionState(state) {
@@ -578,6 +922,129 @@ function styles() {
       display: inline-flex;
       gap: 6px;
     }
+    .log-tools {
+      border-top: 1px solid ${COLORS.grid};
+      padding: 16px;
+    }
+    .section-title {
+      color: ${COLORS.text};
+      font-size: var(--pool-tracker-primary-font-size);
+      font-weight: var(--ha-font-weight-medium, 500);
+      line-height: 20px;
+      margin-bottom: 10px;
+    }
+    .quick-panel {
+      margin-bottom: 16px;
+    }
+    .quick-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .quick-button,
+    .primary {
+      align-items: center;
+      border: 1px solid ${COLORS.grid};
+      border-radius: 6px;
+      display: inline-flex;
+      gap: 8px;
+      justify-content: center;
+      min-height: 40px;
+      padding: 0 12px;
+    }
+    .quick-button {
+      color: ${COLORS.text};
+      max-width: 100%;
+    }
+    .quick-button span,
+    .primary span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .quick-button ha-icon,
+    .primary ha-icon {
+      --mdc-icon-size: 18px;
+      flex: 0 0 auto;
+    }
+    .primary {
+      background: ${COLORS.prediction};
+      border-color: ${COLORS.prediction};
+      color: var(--text-primary-color, #fff);
+      margin-top: 2px;
+      padding: 0 14px;
+    }
+    button:disabled {
+      cursor: progress;
+      opacity: 0.62;
+    }
+    .forms {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .log-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+    }
+    .field-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .field-grid.readings {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .field-grid.chemical-fields {
+      grid-template-columns: minmax(120px, 1.4fr) minmax(80px, 0.8fr) minmax(88px, 0.8fr);
+    }
+    label {
+      color: ${COLORS.secondary};
+      display: flex;
+      flex-direction: column;
+      font-size: var(--pool-tracker-secondary-font-size);
+      gap: 4px;
+      min-width: 0;
+    }
+    input,
+    select,
+    textarea {
+      background: var(--mdc-text-field-fill-color, transparent);
+      border: 1px solid ${COLORS.grid};
+      border-radius: 6px;
+      box-sizing: border-box;
+      color: ${COLORS.text};
+      font: inherit;
+      font-size: var(--pool-tracker-primary-font-size);
+      min-height: 38px;
+      padding: 8px;
+      width: 100%;
+    }
+    textarea {
+      min-height: 66px;
+      resize: vertical;
+    }
+    .message {
+      border-radius: 6px;
+      font-size: var(--pool-tracker-primary-font-size);
+      line-height: 20px;
+      margin-bottom: 12px;
+      padding: 10px 12px;
+    }
+    .message.success {
+      background: color-mix(in srgb, ${COLORS.actual} 14%, transparent);
+      color: ${COLORS.text};
+    }
+    .message.error {
+      background: color-mix(in srgb, var(--error-color, #db4437) 14%, transparent);
+      color: ${COLORS.text};
+    }
+    .muted {
+      color: ${COLORS.secondary};
+      font-size: var(--pool-tracker-secondary-font-size);
+      line-height: 18px;
+    }
     .swatch {
       display: inline-block;
       height: 8px;
@@ -604,6 +1071,20 @@ function styles() {
       color: ${COLORS.secondary};
       padding: 24px 16px;
       text-align: center;
+    }
+    @media (max-width: 720px) {
+      .forms,
+      .field-grid,
+      .field-grid.readings,
+      .field-grid.chemical-fields {
+        grid-template-columns: 1fr;
+      }
+      .header {
+        flex-direction: column;
+      }
+      .state-block {
+        text-align: left;
+      }
     }
   `;
 }

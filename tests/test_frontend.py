@@ -67,4 +67,8 @@ def test_frontend_module_registers_panel_and_lovelace_card() -> None:
     assert 'const PANEL_TAG = "pool-tracker-panel"' in module
     assert "customElements.define(CARD_TAG, PoolTrackerGraphCard)" in module
     assert "customElements.define(PANEL_TAG, PoolTrackerPanel)" in module
+    assert 'data-log="water-test"' in module
+    assert 'data-log="chemical-addition"' in module
+    assert "data-quick-chemical" in module
+    assert 'callService("pool_tracker", service, payload)' in module
     assert "window.customCards.push" in module

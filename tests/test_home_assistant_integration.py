@@ -124,6 +124,10 @@ async def test_fresh_pool_chlorine_sensors_start_unknown(hass) -> None:
     assert predicted is not None
     assert free_chlorine.state == "unknown"
     assert predicted.state == "unknown"
+    assert predicted.attributes["pool_id"] == "pool"
+    assert predicted.attributes["recent_water_tests"] == []
+    assert predicted.attributes["recent_chemical_additions"] == []
+    assert predicted.attributes["quick_chemical_additions"] == []
 
 
 async def test_multiple_config_entries_share_store_and_route_by_pool_id(hass) -> None:
@@ -285,6 +289,17 @@ async def test_prediction_sensor_applies_logged_chlorine_addition(hass) -> None:
     assert float(state.state) > 0
     assert state.attributes["model_inputs"]["chemical_additions"]
     assert state.attributes["chemical_additions"]
+    assert state.attributes["recent_chemical_additions"][0]["summary"] == (
+        "dichlor: 1 Tbsp"
+    )
+    assert state.attributes["quick_chemical_additions"] == [
+        {
+            "chemical": "dichlor",
+            "amount": 1.0,
+            "unit": "Tbsp",
+            "summary": "dichlor: 1 Tbsp",
+        }
+    ]
 
 
 async def test_prediction_sensor_applies_chlorine_addition_without_prior_reading(
