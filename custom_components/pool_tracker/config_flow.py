@@ -17,7 +17,6 @@ from .const import (
     CONF_POOL_TYPE,
     CONF_POOL_VOLUME,
     CONF_POOL_VOLUME_UNIT,
-    CONF_POOLS,
     CONF_SANITIZER_TYPE,
     CONF_SURFACE_TYPE,
     CONF_TYPICALLY_COVERED,
@@ -185,12 +184,7 @@ def build_pool_config(
 
 def pool_config_from_entry(config_entry: config_entries.ConfigEntry) -> dict[str, Any]:
     """Return the active single-pool config for an entry."""
-    for mapping in (config_entry.options, config_entry.data):
-        if legacy_pools := mapping.get(CONF_POOLS):
-            return legacy_pools[0]
-        if mapping.get(CONF_POOL_ID) or mapping.get(CONF_POOL_NAME):
-            return dict(mapping)
-    return {CONF_POOL_ID: DEFAULT_POOL_ID, CONF_POOL_NAME: DEFAULT_POOL_NAME}
+    return dict(config_entry.options or config_entry.data)
 
 
 class PoolTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -237,7 +231,7 @@ class PoolTrackerOptionsFlow(config_entries.OptionsFlowWithReload):
             current_pool = pool_config_from_entry(self.config_entry)
             pool = build_pool_config(
                 user_input,
-                pool_id=current_pool.get(CONF_POOL_ID, DEFAULT_POOL_ID),
+                pool_id=current_pool[CONF_POOL_ID],
             )
             self.hass.config_entries.async_update_entry(
                 self.config_entry, title=pool[CONF_POOL_NAME]

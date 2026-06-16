@@ -35,13 +35,9 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
     CONF_COVER_ENTITY_ID,
-    CONF_RAINFALL_ENTITY_ID,
-    CONF_SUNLIGHT_ENTITY_ID,
-    CONF_TEMPERATURE_ENTITY_ID,
     CONF_WEATHER_ENTITY_ID,
     DOMAIN,
     NUMERIC_WATER_READINGS,
-    POOL_CONTEXT_ENTITY_KEYS,
     SERVICE_GET_PREDICTION,
     WATER_CLARITY_OPTIONS,
     WATER_READING_CYA,
@@ -343,7 +339,7 @@ class PoolTrackerSensor(SensorEntity):
         profile = self._pool_profile
         return [
             entity_id
-            for key in POOL_CONTEXT_ENTITY_KEYS
+            for key in (CONF_WEATHER_ENTITY_ID, CONF_COVER_ENTITY_ID)
             if (entity_id := profile.get(key))
         ]
 
@@ -354,13 +350,9 @@ class PoolTrackerSensor(SensorEntity):
         forecast_attrs = _first_forecast_attrs(weather_attrs)
 
         temperature = _temperature_f(
-            _number_state(self.hass, profile.get(CONF_TEMPERATURE_ENTITY_ID))
+            _float(weather_attrs.get("temperature")),
+            unit=weather_attrs.get("temperature_unit"),
         )
-        if temperature is None:
-            temperature = _temperature_f(
-                _float(weather_attrs.get("temperature")),
-                unit=weather_attrs.get("temperature_unit"),
-            )
         if temperature is None:
             temperature = _temperature_f(
                 _float(
@@ -370,18 +362,14 @@ class PoolTrackerSensor(SensorEntity):
                 unit=weather_attrs.get("temperature_unit"),
             )
 
-        sunlight = _number_state(self.hass, profile.get(CONF_SUNLIGHT_ENTITY_ID))
-        if sunlight is None:
-            sunlight = _sunlight_from_weather_attrs(weather_attrs)
+        sunlight = _sunlight_from_weather_attrs(weather_attrs)
         if sunlight is None:
             sunlight = _sunlight_from_weather_attrs(forecast_attrs)
 
-        rainfall = _number_state(self.hass, profile.get(CONF_RAINFALL_ENTITY_ID))
-        if rainfall is None:
-            rainfall = _float(
-                weather_attrs.get("precipitation")
-                or weather_attrs.get("native_precipitation")
-            )
+        rainfall = _float(
+            weather_attrs.get("precipitation")
+            or weather_attrs.get("native_precipitation")
+        )
         if rainfall is None:
             rainfall = _float(
                 forecast_attrs.get("precipitation")
@@ -391,7 +379,7 @@ class PoolTrackerSensor(SensorEntity):
         covered = _bool_state(self.hass, profile.get(CONF_COVER_ENTITY_ID))
         sources = {
             key: entity_id
-            for key in POOL_CONTEXT_ENTITY_KEYS
+            for key in (CONF_WEATHER_ENTITY_ID, CONF_COVER_ENTITY_ID)
             if (entity_id := profile.get(key))
         }
         return PredictionContext(
@@ -413,13 +401,6 @@ def _state(hass: HomeAssistant, entity_id: str | None):
     if state is None or state.state in {STATE_UNAVAILABLE, STATE_UNKNOWN}:
         return None
     return state
-
-
-def _number_state(hass: HomeAssistant, entity_id: str | None) -> float | None:
-    state = _state(hass, entity_id)
-    if state is None:
-        return None
-    return _float(state.state)
 
 
 def _bool_state(hass: HomeAssistant, entity_id: str | None) -> bool | None:

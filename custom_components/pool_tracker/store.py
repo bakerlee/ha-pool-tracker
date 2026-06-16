@@ -11,7 +11,7 @@ from homeassistant.helpers.storage import Store
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
-from .const import CONF_POOL_ID, DEFAULT_POOL_ID, DOMAIN
+from .const import CONF_POOL_ID, DOMAIN
 from .models import PoolRecord, StorageData, latest_reading, latest_record
 
 STORAGE_VERSION = 1
@@ -34,11 +34,8 @@ Listener = Callable[[], None]
 class PoolTrackerStore:
     """Append-only event store with an explicit migration boundary."""
 
-    def __init__(
-        self, backend: StoreBackend, *, default_pool_id: str = DEFAULT_POOL_ID
-    ) -> None:
+    def __init__(self, backend: StoreBackend) -> None:
         self._backend = backend
-        self._default_pool_id = default_pool_id
         self._data: StorageData | None = None
         self._listeners: list[Listener] = []
 
@@ -56,19 +53,17 @@ class PoolTrackerStore:
             raise RuntimeError("Pool Tracker storage has not been loaded.")
         return self._data
 
-    def records(self, pool_id: str | None = None) -> list[PoolRecord]:
+    def records(self, pool_id: str) -> list[PoolRecord]:
         """Return event records for one pool."""
         pool = self._pool(pool_id)
         return list(pool["records"])
 
-    def latest_record(
-        self, record_type: str, pool_id: str | None = None
-    ) -> PoolRecord | None:
+    def latest_record(self, record_type: str, pool_id: str) -> PoolRecord | None:
         """Return the latest record for one pool and type."""
         return latest_record(self.records(pool_id), record_type)
 
     def latest_reading(
-        self, reading: str, pool_id: str | None = None
+        self, reading: str, pool_id: str
     ) -> tuple[PoolRecord, dict[str, Any]] | None:
         """Return the latest explicit reading for a water-test field."""
         return latest_reading(self.records(pool_id), reading)
@@ -76,7 +71,7 @@ class PoolTrackerStore:
     async def async_append(self, record: PoolRecord) -> PoolRecord:
         """Append a record and persist it."""
         stored = deepcopy(record)
-        pool = self._pool(stored.get(CONF_POOL_ID))
+        pool = self._pool(stored[CONF_POOL_ID])
         pool["records"].append(stored)
         await self._backend.async_save(self.data)
         self._notify_listeners()
@@ -91,8 +86,7 @@ class PoolTrackerStore:
 
         return remove_listener
 
-    def _pool(self, pool_id: str | None) -> StorageData:
-        pool_id = pool_id or self._default_pool_id
+    def _pool(self, pool_id: str) -> StorageData:
         pools: dict[str, StorageData] = self.data.setdefault("pools", {})
         pool = pools.setdefault(pool_id, {"records": []})
         pool.setdefault("records", [])

@@ -105,6 +105,27 @@ async def test_options_flow_opens_for_existing_pool(hass) -> None:
     assert result["step_id"] == "init"
 
 
+async def test_fresh_pool_chlorine_sensors_start_unknown(hass) -> None:
+    """A pool with no records does not invent chlorine states."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id="pool",
+        data={CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"},
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    free_chlorine = _sensor_state(hass, "free_chlorine")
+    predicted = _sensor_state(hass, "free_chlorine_predicted")
+    assert free_chlorine is not None
+    assert predicted is not None
+    assert free_chlorine.state == "unknown"
+    assert predicted.state == "unknown"
+
+
 async def test_multiple_config_entries_share_store_and_route_by_pool_id(hass) -> None:
     """Multiple configured pools can log records without clobbering storage."""
     rooftop = MockConfigEntry(

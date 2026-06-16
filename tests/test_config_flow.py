@@ -13,7 +13,6 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry  # noqa
 from custom_components.pool_tracker.config_flow import (  # noqa: E402
     _pool_profile_schema,
     build_pool_config,
-    pool_config_from_entry,
 )
 from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_COVER_ENTITY_ID,
@@ -23,7 +22,6 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_POOL_TYPE,
     CONF_POOL_VOLUME,
     CONF_POOL_VOLUME_UNIT,
-    CONF_POOLS,
     CONF_SANITIZER_TYPE,
     CONF_SURFACE_TYPE,
     CONF_TYPICALLY_COVERED,
@@ -120,20 +118,6 @@ async def test_pool_profile_schema_does_not_guess_ambiguous_weather_entity(
         field for field in converted if field["name"] == CONF_WEATHER_ENTITY_ID
     )
     assert "default" not in weather
-
-
-def test_pool_config_from_entry_accepts_legacy_pool_list() -> None:
-    """Existing entries with the old length-1 pool list continue to load."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        title="Legacy Pool",
-        data={CONF_POOLS: [{CONF_POOL_ID: "legacy", CONF_POOL_NAME: "Legacy Pool"}]},
-    )
-
-    assert pool_config_from_entry(entry) == {
-        CONF_POOL_ID: "legacy",
-        CONF_POOL_NAME: "Legacy Pool",
-    }
 
 
 async def test_config_flow_uses_pool_name_for_entry(hass) -> None:

@@ -15,10 +15,7 @@ from .const import (
     CONF_DEFAULT_TESTING_METHOD,
     CONF_POOL_ID,
     CONF_POOL_NAME,
-    CONF_POOLS,
     CONF_TYPICALLY_COVERED,
-    DEFAULT_POOL_ID,
-    DEFAULT_POOL_NAME,
     DEFAULT_TESTING_METHOD,
     DOMAIN,
     EVENT_RECORD_CREATED,
@@ -193,8 +190,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: PoolTrackerConfigEntry) 
     """Set up Pool Tracker from a config entry."""
     pool_profiles = _pool_profiles_from_entry(entry)
     pools = {
-        pool_id: profile.get(CONF_POOL_NAME, DEFAULT_POOL_NAME)
-        for pool_id, profile in pool_profiles.items()
+        pool_id: profile[CONF_POOL_NAME] for pool_id, profile in pool_profiles.items()
     }
     store = hass.data[DOMAIN]["store"]
 
@@ -258,25 +254,11 @@ def _runtime_for_call(
 def _pool_profiles_from_entry(
     entry: PoolTrackerConfigEntry,
 ) -> dict[str, dict[str, Any]]:
-    pool = _pool_profile_from_mapping(entry.options) or _pool_profile_from_mapping(
-        entry.data
-    )
-    if pool is None:
-        pool = {CONF_POOL_ID: DEFAULT_POOL_ID, CONF_POOL_NAME: DEFAULT_POOL_NAME}
-
-    pool_id = pool.setdefault(CONF_POOL_ID, DEFAULT_POOL_ID)
-    pool.setdefault(CONF_POOL_NAME, DEFAULT_POOL_NAME)
+    pool = dict(entry.options or entry.data)
+    pool_id = pool[CONF_POOL_ID]
     pool.setdefault(CONF_DEFAULT_TESTING_METHOD, DEFAULT_TESTING_METHOD)
     pool.setdefault(CONF_TYPICALLY_COVERED, False)
     return {pool_id: pool}
-
-
-def _pool_profile_from_mapping(mapping: dict[str, Any]) -> dict[str, Any] | None:
-    if legacy_pools := mapping.get(CONF_POOLS):
-        return dict(legacy_pools[0])
-    if mapping.get(CONF_POOL_ID) or mapping.get(CONF_POOL_NAME):
-        return dict(mapping)
-    return None
 
 
 def _fire_record_created(hass: HomeAssistant, record: dict[str, Any]) -> None:

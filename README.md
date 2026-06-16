@@ -93,7 +93,7 @@ The v1 model is intentionally transparent and resilient to sparse data:
 
 Prediction sensors remain unknown until at least one actual water-test reading exists for that value. A chemical-addition record alone is not enough to invent an initial free chlorine baseline.
 
-Weather context uses the configured weather entity's current attributes, and forecast attributes when the weather entity exposes them. Existing configs with explicit sunlight, rainfall, or temperature sensor entities continue to use those values when present, but new setup uses a single weather entity.
+Weather context uses the configured weather entity's current attributes, and forecast attributes when the weather entity exposes them.
 
 For chemical additions, Pool Tracker uses configured volume when available. If volume is missing, it falls back to a rough default by pool type and reports the volume source in `model_inputs`. This is still an estimate, not a dosing recommendation.
 

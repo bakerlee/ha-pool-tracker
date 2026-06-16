@@ -5,7 +5,6 @@ from __future__ import annotations
 DOMAIN = "pool_tracker"
 PLATFORMS = ["event", "sensor"]
 
-CONF_POOLS = "pools"
 CONF_POOL_ID = "pool_id"
 CONF_POOL_NAME = "name"
 CONF_POOL_VOLUME = "volume"
@@ -16,9 +15,6 @@ CONF_SANITIZER_TYPE = "sanitizer_type"
 CONF_DEFAULT_TESTING_METHOD = "default_testing_method"
 CONF_TYPICALLY_COVERED = "typically_covered"
 CONF_WEATHER_ENTITY_ID = "weather_entity_id"
-CONF_SUNLIGHT_ENTITY_ID = "sunlight_entity_id"
-CONF_RAINFALL_ENTITY_ID = "rainfall_entity_id"
-CONF_TEMPERATURE_ENTITY_ID = "temperature_entity_id"
 CONF_COVER_ENTITY_ID = "cover_entity_id"
 DEFAULT_POOL_ID = "pool"
 DEFAULT_POOL_NAME = "Pool"
@@ -50,14 +46,6 @@ NUMERIC_WATER_READINGS = (
     WATER_READING_PH,
     WATER_READING_TOTAL_ALKALINITY,
     WATER_READING_CYA,
-)
-
-POOL_CONTEXT_ENTITY_KEYS = (
-    CONF_WEATHER_ENTITY_ID,
-    CONF_SUNLIGHT_ENTITY_ID,
-    CONF_RAINFALL_ENTITY_ID,
-    CONF_TEMPERATURE_ENTITY_ID,
-    CONF_COVER_ENTITY_ID,
 )
 
 POOL_VOLUME_UNITS = ("gal", "L")
