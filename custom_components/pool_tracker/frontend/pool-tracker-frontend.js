@@ -194,8 +194,8 @@ function renderChart(state) {
   }
 
   const width = 720;
-  const height = 238;
-  const margin = { top: 14, right: 14, bottom: 30, left: 42 };
+  const height = 260;
+  const margin = { top: 16, right: 16, bottom: 34, left: 46 };
   const allTimes = [
     ...series.map((point) => point.timestamp),
     ...actuals.map((point) => point.timestamp),
@@ -430,7 +430,12 @@ function escapeHtml(value) {
 function styles() {
   return `
     :host {
-      --pool-tracker-chart-height: 238px;
+      --pool-tracker-title-font-size: var(--ha-card-header-font-size, 24px);
+      --pool-tracker-title-font-weight: var(--ha-font-weight-normal, 400);
+      --pool-tracker-primary-font-size: var(--paper-font-body1_-_font-size, 14px);
+      --pool-tracker-secondary-font-size: var(--paper-font-caption_-_font-size, 12px);
+      --pool-tracker-state-font-size: var(--paper-font-display1_-_font-size, 34px);
+      --pool-tracker-chart-height: 260px;
     }
     ha-card {
       display: block;
@@ -441,34 +446,36 @@ function styles() {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 12px;
-      padding: 16px 16px 6px;
+      gap: 16px;
+      padding: 20px 16px 8px;
     }
     .title {
       color: ${COLORS.text};
-      font-size: var(--ha-font-size-l, 18px);
-      font-weight: var(--ha-font-weight-medium, 500);
+      font-size: var(--pool-tracker-title-font-size);
+      font-weight: var(--pool-tracker-title-font-weight);
       line-height: 1.2;
     }
     .subtitle {
       color: ${COLORS.secondary};
-      font-size: var(--ha-font-size-s, 12px);
-      margin-top: 4px;
+      font-size: var(--pool-tracker-primary-font-size);
+      line-height: 20px;
+      margin-top: 2px;
     }
     .state-block {
       text-align: right;
     }
     .current {
       color: ${COLORS.text};
-      font-size: var(--ha-font-size-xl, 22px);
-      font-weight: var(--ha-font-weight-normal, 400);
-      line-height: 1;
+      font-size: var(--pool-tracker-state-font-size);
+      font-weight: 400;
+      line-height: 36px;
       white-space: nowrap;
     }
     .state-label {
       color: ${COLORS.secondary};
-      font-size: var(--ha-font-size-xs, 11px);
-      margin-top: 5px;
+      font-size: var(--pool-tracker-secondary-font-size);
+      line-height: 16px;
+      margin-top: 4px;
       white-space: nowrap;
     }
     .tabs {
@@ -489,8 +496,8 @@ function styles() {
       color: ${COLORS.secondary};
       cursor: pointer;
       font: inherit;
-      font-size: var(--ha-font-size-s, 12px);
-      min-height: 36px;
+      font-size: var(--pool-tracker-primary-font-size);
+      min-height: 40px;
       padding: 0;
       white-space: nowrap;
     }
@@ -513,7 +520,7 @@ function styles() {
     .axis,
     .time-axis {
       fill: ${COLORS.secondary};
-      font-size: 11px;
+      font-size: 12px;
       opacity: 0.82;
     }
     .uncertainty {
@@ -562,7 +569,8 @@ function styles() {
       display: flex;
       flex-wrap: wrap;
       gap: 10px 14px;
-      font-size: var(--ha-font-size-xs, 11px);
+      font-size: var(--pool-tracker-secondary-font-size);
+      line-height: 18px;
       padding: 0 16px 16px;
     }
     .meta-row span {
