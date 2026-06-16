@@ -24,13 +24,9 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_POOL_VOLUME,
     CONF_POOL_VOLUME_UNIT,
     CONF_POOLS,
-    CONF_RAINFALL_ENTITY_ID,
     CONF_SANITIZER_TYPE,
-    CONF_SUNLIGHT_ENTITY_ID,
     CONF_SURFACE_TYPE,
-    CONF_TEMPERATURE_ENTITY_ID,
     CONF_TYPICALLY_COVERED,
-    CONF_USAGE_ENTITY_ID,
     CONF_WEATHER_ENTITY_ID,
     DOMAIN,
 )
@@ -49,11 +45,7 @@ def test_build_pool_config_keeps_future_calculation_attributes() -> None:
             CONF_DEFAULT_TESTING_METHOD: "strips",
             CONF_TYPICALLY_COVERED: True,
             CONF_WEATHER_ENTITY_ID: "weather.home",
-            CONF_SUNLIGHT_ENTITY_ID: "sensor.pool_sunlight",
-            CONF_RAINFALL_ENTITY_ID: "sensor.pool_rainfall",
-            CONF_TEMPERATURE_ENTITY_ID: "sensor.pool_temperature",
             CONF_COVER_ENTITY_ID: "binary_sensor.pool_covered",
-            CONF_USAGE_ENTITY_ID: "sensor.pool_usage",
         }
     )
 
@@ -66,11 +58,7 @@ def test_build_pool_config_keeps_future_calculation_attributes() -> None:
     assert pool[CONF_DEFAULT_TESTING_METHOD] == "strips"
     assert pool[CONF_TYPICALLY_COVERED] is True
     assert pool[CONF_WEATHER_ENTITY_ID] == "weather.home"
-    assert pool[CONF_SUNLIGHT_ENTITY_ID] == "sensor.pool_sunlight"
-    assert pool[CONF_RAINFALL_ENTITY_ID] == "sensor.pool_rainfall"
-    assert pool[CONF_TEMPERATURE_ENTITY_ID] == "sensor.pool_temperature"
     assert pool[CONF_COVER_ENTITY_ID] == "binary_sensor.pool_covered"
-    assert pool[CONF_USAGE_ENTITY_ID] == "sensor.pool_usage"
 
 
 def test_pool_profile_schema_serializes_for_home_assistant_forms() -> None:
@@ -90,12 +78,48 @@ def test_pool_profile_schema_serializes_for_home_assistant_forms() -> None:
         CONF_DEFAULT_TESTING_METHOD,
         CONF_TYPICALLY_COVERED,
         CONF_WEATHER_ENTITY_ID,
-        CONF_SUNLIGHT_ENTITY_ID,
-        CONF_RAINFALL_ENTITY_ID,
-        CONF_TEMPERATURE_ENTITY_ID,
         CONF_COVER_ENTITY_ID,
-        CONF_USAGE_ENTITY_ID,
     ]
+    sanitizer = next(
+        field for field in converted if field["name"] == CONF_SANITIZER_TYPE
+    )
+    assert sanitizer["selector"]["select"]["options"][1] == {
+        "value": "salt_chlorine_generator",
+        "label": "Salt chlorine generator",
+    }
+
+
+async def test_pool_profile_schema_defaults_single_weather_entity(hass) -> None:
+    """The config form defaults to the only configured weather entity."""
+    hass.states.async_set("weather.home", "sunny")
+
+    converted = voluptuous_serialize.convert(
+        _pool_profile_schema({CONF_POOL_NAME: "Pool"}, hass=hass),
+        custom_serializer=cv.custom_serializer,
+    )
+
+    weather = next(
+        field for field in converted if field["name"] == CONF_WEATHER_ENTITY_ID
+    )
+    assert weather["default"] == "weather.home"
+
+
+async def test_pool_profile_schema_does_not_guess_ambiguous_weather_entity(
+    hass,
+) -> None:
+    """Multiple weather entities leave the weather field unset."""
+    hass.states.async_set("weather.home", "sunny")
+    hass.states.async_set("weather.patio", "cloudy")
+
+    converted = voluptuous_serialize.convert(
+        _pool_profile_schema({CONF_POOL_NAME: "Pool"}, hass=hass),
+        custom_serializer=cv.custom_serializer,
+    )
+
+    weather = next(
+        field for field in converted if field["name"] == CONF_WEATHER_ENTITY_ID
+    )
+    assert "default" not in weather
 
 
 def test_pool_config_from_entry_accepts_legacy_pool_list() -> None:

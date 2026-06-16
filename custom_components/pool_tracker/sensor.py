@@ -38,12 +38,10 @@ from .const import (
     CONF_RAINFALL_ENTITY_ID,
     CONF_SUNLIGHT_ENTITY_ID,
     CONF_TEMPERATURE_ENTITY_ID,
-    CONF_USAGE_ENTITY_ID,
     CONF_WEATHER_ENTITY_ID,
     DOMAIN,
     NUMERIC_WATER_READINGS,
     POOL_CONTEXT_ENTITY_KEYS,
-    RECORD_TYPE_WATER_TEST,
     SERVICE_GET_PREDICTION,
     WATER_CLARITY_OPTIONS,
     WATER_READING_CYA,
@@ -53,7 +51,7 @@ from .const import (
     WATER_READING_WATER_CLARITY,
     WATER_TESTING_METHOD,
 )
-from .models import PoolRecord, parse_utc
+from .models import PoolRecord
 from .prediction import PredictionContext, ReadingPrediction, build_prediction
 
 PARALLEL_UPDATES = 0
@@ -156,23 +154,6 @@ def _prediction_response(prediction: ReadingPrediction) -> dict[str, Any]:
 
 SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
     PoolSensorDescription(
-        key="last_water_test",
-        translation_key="last_water_test",
-        device_class=SensorDeviceClass.TIMESTAMP,
-        value_fn=lambda entity: (
-            parse_utc(record["event_timestamp"])
-            if (
-                record := entity.store.latest_record(
-                    RECORD_TYPE_WATER_TEST, entity.pool_id
-                )
-            )
-            else None
-        ),
-        attr_fn=lambda entity: _latest_record_entity_attrs(
-            entity, RECORD_TYPE_WATER_TEST
-        ),
-    ),
-    PoolSensorDescription(
         key="free_chlorine",
         translation_key="free_chlorine",
         native_unit_of_measurement="ppm",
@@ -228,8 +209,8 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
     ),
     *(
         PoolSensorDescription(
-            key=f"{reading}_prediction",
-            translation_key=f"{reading}_prediction",
+            key=f"{reading}_predicted",
+            translation_key=f"{reading}_predicted",
             native_unit_of_measurement="pH" if reading == WATER_READING_PH else "ppm",
             suggested_display_precision=2,
             value_fn=lambda entity, prediction_reading=reading: _prediction_value(
@@ -408,7 +389,6 @@ class PoolTrackerSensor(SensorEntity):
             )
 
         covered = _bool_state(self.hass, profile.get(CONF_COVER_ENTITY_ID))
-        usage = _usage_state(self.hass, profile.get(CONF_USAGE_ENTITY_ID))
         sources = {
             key: entity_id
             for key in POOL_CONTEXT_ENTITY_KEYS
@@ -419,7 +399,6 @@ class PoolTrackerSensor(SensorEntity):
             sunlight=sunlight,
             rainfall=rainfall,
             temperature_f=temperature,
-            usage=usage,
             weather_condition=(
                 weather_state.state if weather_state is not None else None
             ),
@@ -456,17 +435,6 @@ def _bool_state(hass: HomeAssistant, entity_id: str | None) -> bool | None:
     if state.state in {"open", "uncovered", "false", "no"}:
         return False
     return None
-
-
-def _usage_state(hass: HomeAssistant, entity_id: str | None) -> float | None:
-    state = _state(hass, entity_id)
-    if state is None:
-        return None
-    if state.state == STATE_ON:
-        return 1.0
-    if state.state == STATE_OFF:
-        return 0.0
-    return _float(state.state)
 
 
 def _sunlight_from_weather_attrs(attrs: dict[str, Any]) -> float | None:

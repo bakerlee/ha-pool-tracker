@@ -55,7 +55,6 @@ class PredictionContext:
     sunlight: float | None = None
     rainfall: float | None = None
     temperature_f: float | None = None
-    usage: float | None = None
     weather_condition: str | None = None
     sources: dict[str, str] | None = None
 
@@ -67,7 +66,6 @@ class PredictionContext:
             "sunlight",
             "rainfall",
             "temperature_f",
-            "usage",
             "weather_condition",
         ):
             value = getattr(self, key)
@@ -132,17 +130,7 @@ def build_prediction(
     chemical_effects = _chemical_effects(records, pool_profile=profile)
     actuals = _actual_readings(records, reading)
     if not actuals:
-        if reading != WATER_READING_FREE_CHLORINE:
-            return None
-        return _build_chemical_only_prediction(
-            chemical_effects,
-            now=now,
-            profile=profile,
-            context=context,
-            step=step,
-            history=history,
-            future=future,
-        )
+        return None
 
     window_start = now - history
     future_end = now + future
@@ -292,108 +280,6 @@ def _actual_readings(records: list[PoolRecord], reading: str) -> list[_ActualRea
     return sorted(actuals, key=lambda actual: (actual.timestamp, actual.record_id))
 
 
-def _build_chemical_only_prediction(
-    chemical_effects: list[_ChemicalEffect],
-    *,
-    now: datetime,
-    profile: dict[str, Any],
-    context: PredictionContext,
-    step: timedelta,
-    history: timedelta,
-    future: timedelta,
-) -> ReadingPrediction | None:
-    relevant_effects = [
-        effect for effect in chemical_effects if effect.timestamp <= now
-    ]
-    if not relevant_effects:
-        return None
-
-    start = relevant_effects[0].timestamp
-    window_start = now - history
-    future_end = now + future
-    series: list[dict[str, Any]] = []
-    cursor = max(start, window_start)
-    if cursor > start:
-        elapsed_steps = int(
-            _hours_between(start, cursor) // (step.total_seconds() / 3600)
-        )
-        cursor = start + (elapsed_steps * step)
-        if cursor < window_start:
-            cursor += step
-
-    while cursor <= future_end:
-        hours = max(0.0, _hours_between(start, cursor))
-        predicted = _predict_at(
-            WATER_READING_FREE_CHLORINE,
-            0.0,
-            start,
-            cursor,
-            profile=profile,
-            context=context,
-            chemical_effects=chemical_effects,
-        )
-        uncertainty = _uncertainty(
-            WATER_READING_FREE_CHLORINE,
-            hours,
-            learned_error=0.75,
-        )
-        if cursor >= window_start:
-            series.append(
-                _point(
-                    cursor,
-                    predicted,
-                    WATER_READING_FREE_CHLORINE,
-                    uncertainty=uncertainty,
-                    is_actual=False,
-                )
-            )
-        cursor += step
-
-    current_value = _predict_at(
-        WATER_READING_FREE_CHLORINE,
-        0.0,
-        start,
-        now,
-        profile=profile,
-        context=context,
-        chemical_effects=chemical_effects,
-    )
-    current_uncertainty = _uncertainty(
-        WATER_READING_FREE_CHLORINE,
-        max(0.0, _hours_between(start, now)),
-        learned_error=0.75,
-    )
-    current_point = _point(
-        now,
-        current_value,
-        WATER_READING_FREE_CHLORINE,
-        uncertainty=current_uncertainty,
-        is_actual=False,
-    )
-    if not series or series[-1]["timestamp"] != current_point["timestamp"]:
-        series.append(current_point)
-
-    return ReadingPrediction(
-        reading=WATER_READING_FREE_CHLORINE,
-        unit=WATER_TEST_READING_UNITS[WATER_READING_FREE_CHLORINE],
-        as_of=now.isoformat(),
-        value=current_point["value"],
-        uncertainty=current_point["uncertainty"],
-        lower_bound=current_point["lower_bound"],
-        upper_bound=current_point["upper_bound"],
-        last_actual_value=None,
-        last_actual_timestamp=None,
-        model_inputs=_model_inputs(
-            context,
-            relevant_effects,
-            profile=profile,
-            baseline="assumed_zero_no_free_chlorine_reading",
-        ),
-        series=_dedupe_points(series)[-MAX_SERIES_POINTS:],
-        actuals=[],
-    )
-
-
 def _predict_value(
     reading: str,
     start_value: float,
@@ -420,7 +306,7 @@ def _predict_value(
             value = start_value - _free_chlorine_daily_loss(profile, context) * days
     elif reading == WATER_READING_PH:
         target = 7.6
-        rate = 0.035 + 0.015 * _usage_factor(context)
+        rate = 0.035
         value = target + (start_value - target) * exp(-rate * days)
     elif reading == WATER_READING_TOTAL_ALKALINITY:
         value = start_value - (0.35 * days) - (1.5 * _rainfall(context))
@@ -615,7 +501,6 @@ def _free_chlorine_daily_loss(
 
     factor *= 0.85 + (0.45 * _sunlight_factor(context))
     factor *= _temperature_factor(context)
-    factor *= 1.0 + (0.25 * _usage_factor(context))
     factor *= 1.0 + min(_rainfall(context) * 0.08, 0.25)
     return max(0.05, 0.45 * factor)
 
@@ -702,12 +587,6 @@ def _temperature_factor(context: PredictionContext) -> float:
     if temperature <= 70:
         return 0.9
     return 1.0
-
-
-def _usage_factor(context: PredictionContext) -> float:
-    if context.usage is None:
-        return 0.0
-    return min(1.0, max(0.0, float(context.usage)))
 
 
 def _rainfall(context: PredictionContext) -> float:

@@ -15,16 +15,15 @@ from custom_components.pool_tracker.sensor import (  # noqa: E402
 def test_sensor_descriptions_use_clean_entity_keys() -> None:
     """Sensors use conventional names and reserve last_* for event timestamps."""
     expected_keys = [
-        "last_water_test",
         "free_chlorine",
         "ph",
         "total_alkalinity",
         "cya",
         "water_clarity",
-        "free_chlorine_prediction",
-        "ph_prediction",
-        "total_alkalinity_prediction",
-        "cya_prediction",
+        "free_chlorine_predicted",
+        "ph_predicted",
+        "total_alkalinity_predicted",
+        "cya_predicted",
     ]
 
     assert [description.key for description in SENSOR_DESCRIPTIONS] == expected_keys
@@ -53,7 +52,7 @@ def test_prediction_sensors_have_no_measurement_state_class() -> None:
     predictions = [
         description
         for description in SENSOR_DESCRIPTIONS
-        if description.key.endswith("_prediction")
+        if description.key.endswith("_predicted")
     ]
 
     assert predictions

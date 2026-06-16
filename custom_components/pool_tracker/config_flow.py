@@ -18,25 +18,26 @@ from .const import (
     CONF_POOL_VOLUME,
     CONF_POOL_VOLUME_UNIT,
     CONF_POOLS,
-    CONF_RAINFALL_ENTITY_ID,
     CONF_SANITIZER_TYPE,
-    CONF_SUNLIGHT_ENTITY_ID,
     CONF_SURFACE_TYPE,
-    CONF_TEMPERATURE_ENTITY_ID,
     CONF_TYPICALLY_COVERED,
-    CONF_USAGE_ENTITY_ID,
     CONF_WEATHER_ENTITY_ID,
     DEFAULT_POOL_ID,
     DEFAULT_POOL_NAME,
     DEFAULT_POOL_VOLUME_UNIT,
     DEFAULT_TESTING_METHOD,
     DOMAIN,
-    POOL_CONTEXT_ENTITY_KEYS,
     POOL_SANITIZER_TYPES,
     POOL_SURFACE_TYPES,
     POOL_TYPES,
     POOL_VOLUME_UNITS,
+    SELECT_LABELS,
     WATER_TESTING_METHODS,
+)
+
+POOL_PROFILE_ENTITY_KEYS = (
+    CONF_WEATHER_ENTITY_ID,
+    CONF_COVER_ENTITY_ID,
 )
 
 
@@ -56,7 +57,10 @@ def _optional_with_default(key: str, defaults: dict[str, Any]) -> vol.Optional:
 def _select(options: tuple[str, ...]) -> selector.SelectSelector:
     return selector.SelectSelector(
         selector.SelectSelectorConfig(
-            options=list(options),
+            options=[
+                selector.SelectOptionDict(value=option, label=SELECT_LABELS[option])
+                for option in options
+            ],
             mode=selector.SelectSelectorMode.DROPDOWN,
         )
     )
@@ -64,6 +68,17 @@ def _select(options: tuple[str, ...]) -> selector.SelectSelector:
 
 def _entity_selector(domain: str | list[str]) -> selector.EntitySelector:
     return selector.EntitySelector(selector.EntitySelectorConfig(domain=domain))
+
+
+def _weather_entity_default(hass, defaults: dict[str, Any]) -> str | None:
+    if (configured := _optional_text(defaults.get(CONF_WEATHER_ENTITY_ID))) is not None:
+        return configured
+    if hass is None:
+        return None
+    weather_entity_ids = hass.states.async_entity_ids("weather")
+    if len(weather_entity_ids) == 1:
+        return weather_entity_ids[0]
+    return None
 
 
 def _pool_id_from_name(name: str) -> str:
@@ -93,8 +108,11 @@ def _unique_pool_id(hass, name: str) -> str:
     return candidate
 
 
-def _pool_profile_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+def _pool_profile_schema(
+    defaults: dict[str, Any] | None = None, *, hass=None
+) -> vol.Schema:
     defaults = defaults or {}
+    weather_default = _weather_entity_default(hass, defaults)
     schema: dict[Any, Any] = {
         vol.Optional(
             CONF_POOL_NAME, default=defaults.get(CONF_POOL_NAME, DEFAULT_POOL_NAME)
@@ -125,23 +143,13 @@ def _pool_profile_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             CONF_TYPICALLY_COVERED,
             default=defaults.get(CONF_TYPICALLY_COVERED, False),
         ): selector.BooleanSelector(),
-        _optional_with_default(CONF_WEATHER_ENTITY_ID, defaults): _entity_selector(
-            "weather"
-        ),
-        _optional_with_default(CONF_SUNLIGHT_ENTITY_ID, defaults): _entity_selector(
-            "sensor"
-        ),
-        _optional_with_default(CONF_RAINFALL_ENTITY_ID, defaults): _entity_selector(
-            "sensor"
-        ),
-        _optional_with_default(CONF_TEMPERATURE_ENTITY_ID, defaults): _entity_selector(
-            "sensor"
-        ),
+        (
+            vol.Optional(CONF_WEATHER_ENTITY_ID, default=weather_default)
+            if weather_default is not None
+            else vol.Optional(CONF_WEATHER_ENTITY_ID)
+        ): _entity_selector("weather"),
         _optional_with_default(CONF_COVER_ENTITY_ID, defaults): _entity_selector(
             ["binary_sensor", "cover", "input_boolean", "switch"]
-        ),
-        _optional_with_default(CONF_USAGE_ENTITY_ID, defaults): _entity_selector(
-            ["binary_sensor", "input_boolean", "sensor", "switch"]
         ),
     }
     return vol.Schema(schema)
@@ -166,7 +174,7 @@ def build_pool_config(
     for key in (CONF_POOL_TYPE, CONF_SURFACE_TYPE, CONF_SANITIZER_TYPE):
         if value := _optional_text(user_input.get(key, "")):
             pool[key] = value
-    for key in POOL_CONTEXT_ENTITY_KEYS:
+    for key in POOL_PROFILE_ENTITY_KEYS:
         if value := _optional_text(user_input.get(key, "")):
             pool[key] = value
     volume = user_input.get(CONF_POOL_VOLUME)
@@ -215,7 +223,7 @@ class PoolTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_pool_profile_schema(),
+            data_schema=_pool_profile_schema(hass=self.hass),
             errors=errors,
         )
 
@@ -238,5 +246,7 @@ class PoolTrackerOptionsFlow(config_entries.OptionsFlowWithReload):
 
         return self.async_show_form(
             step_id="init",
-            data_schema=_pool_profile_schema(pool_config_from_entry(self.config_entry)),
+            data_schema=_pool_profile_schema(
+                pool_config_from_entry(self.config_entry), hass=self.hass
+            ),
         )

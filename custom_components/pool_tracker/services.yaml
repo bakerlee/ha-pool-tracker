@@ -46,22 +46,33 @@ log_water_test:
       selector:
         select:
           options:
-            - clear
-            - hazy
-            - cloudy
-            - green
-            - other
+            - value: clear
+              label: Clear
+            - value: hazy
+              label: Hazy
+            - value: cloudy
+              label: Cloudy
+            - value: green
+              label: Green
+            - value: other
+              label: Other
     testing_method:
       example: strips
       selector:
         select:
           options:
-            - strips
-            - drop_test
-            - digital_meter
-            - photometer
-            - pool_store
-            - other
+            - value: strips
+              label: Test strips
+            - value: drop_test
+              label: Drop test
+            - value: digital_meter
+              label: Digital meter
+            - value: photometer
+              label: Photometer
+            - value: pool_store
+              label: Pool store
+            - value: other
+              label: Other
     notes:
       example: Taylor drop test after evening swim.
       selector:
@@ -114,7 +125,7 @@ get_prediction:
   fields:
     entity_id:
       required: true
-      example: sensor.pool_free_chlorine_prediction
+      example: sensor.pool_free_chlorine_predicted
       selector:
         entity:
           integration: pool_tracker

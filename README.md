@@ -44,26 +44,25 @@ Each config entry represents one pool and stores a small pool profile for future
 - Sanitizer type, such as chlorine, salt chlorine generator, or bromine
 - Default water-testing method
 - Whether the pool is typically covered
-- Optional Home Assistant entities for weather, sunlight, rainfall, temperature, cover state, and usage
+- Optional Home Assistant weather and cover entities
 
-These attributes can be changed from the integration options. Optional entity values are ignored when they are missing, unavailable, or unknown. Pool Tracker still does not calculate chemical recommendations.
+If Home Assistant has exactly one weather entity when a pool is configured, Pool Tracker preselects it. These attributes can be changed from the integration options. Optional entity values are ignored when they are missing, unavailable, or unknown. Pool Tracker still does not calculate chemical recommendations.
 
 ## Entities
 
 Each configured pool device exposes read-only sensors derived from the event log:
 
-- Last water test
-- Last chemical addition
 - Free chlorine
 - pH
 - Total alkalinity
 - CYA/stabilizer
 - Water clarity
-- Chemical addition summary
-- Free chlorine prediction
-- pH prediction
-- Total alkalinity prediction
-- CYA/stabilizer prediction
+- Free chlorine (Predicted)
+- pH (Predicted)
+- Total alkalinity (Predicted)
+- CYA/stabilizer (Predicted)
+
+Each configured pool also exposes event entities for water tests and chemical additions. These fire when new records are logged.
 
 These sensors are display surfaces. They are not mutable input fields.
 
@@ -81,20 +80,20 @@ Each prediction sensor state is the current estimated value. Attributes include:
 - `lower_bound`
 - `upper_bound`
 - `model_inputs`
-- `series`
-- `actuals`
 
-`actuals` contains recent measured readings as chart points. `series` contains a bounded prediction line with `value`, `lower_bound`, `upper_bound`, `uncertainty`, and `is_actual`. Uncertainty is zero at actual reading timestamps and grows as time passes after a test. When a later reading disagrees with the prior estimate, future uncertainty increases.
+The `pool_tracker.get_prediction` action returns `actuals` and `series` for charting. `actuals` contains recent measured readings as chart points. `series` contains a bounded prediction line with `value`, `lower_bound`, `upper_bound`, `uncertainty`, and `is_actual`. Uncertainty is zero at actual reading timestamps and grows as time passes after a test. When a later reading disagrees with the prior estimate, future uncertainty increases.
 
 The v1 model is intentionally transparent and resilient to sparse data:
 
-- Free chlorine decays over time, faster with outdoor, uncovered, sunny, warm, rainy, or high-usage context.
+- Free chlorine decays over time, faster with outdoor, uncovered, sunny, warm, or rainy context.
 - Recognized chlorine additions, including dichlor, are estimated from the logged amount, unit, and pool volume, then included in the free chlorine prediction.
 - pH drifts slowly toward a neutral/default target.
 - Total alkalinity and CYA drift slowly, with rainfall treated as possible dilution context.
 - Missing optional context falls back to neutral defaults.
 
-Weather context uses the configured weather entity's current attributes, and forecast attributes when the weather entity exposes them. Explicit configured sunlight, rainfall, and temperature sensor entities take precedence over weather-derived values.
+Prediction sensors remain unknown until at least one actual water-test reading exists for that value. A chemical-addition record alone is not enough to invent an initial free chlorine baseline.
+
+Weather context uses the configured weather entity's current attributes, and forecast attributes when the weather entity exposes them. Existing configs with explicit sunlight, rainfall, or temperature sensor entities continue to use those values when present, but new setup uses a single weather entity.
 
 For chemical additions, Pool Tracker uses configured volume when available. If volume is missing, it falls back to a rough default by pool type and reports the volume source in `model_inputs`. This is still an estimate, not a dosing recommendation.
 
@@ -106,14 +105,14 @@ header:
   show: true
   title: Free chlorine estimate
 series:
-  - entity: sensor.pool_free_chlorine_prediction
+  - entity: sensor.pool_free_chlorine_predicted
     name: Prediction
     data_generator: |
       return entity.attributes.series.map((point) => [
         new Date(point.timestamp).getTime(),
         point.value,
       ]);
-  - entity: sensor.pool_free_chlorine_prediction
+  - entity: sensor.pool_free_chlorine_predicted
     name: Actual readings
     type: scatter
     data_generator: |
@@ -265,3 +264,4 @@ ruff format .
 - V1 supports multiple configured pools, with one Pool Tracker device per pool.
 - The backend and service actions are implemented first; a full custom panel is not included yet.
 - There is no chemistry guidance, dosing advice, equipment control, or verification that a logged action physically happened.
+- Usage context is deferred. It is unclear whether this should be a boolean in-use/not-in-use signal, an event such as "used for 3 hours", or a more flexible proxied value. Future design should make it helpful without forcing one brittle interpretation.

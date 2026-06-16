@@ -20,7 +20,6 @@ CONF_SUNLIGHT_ENTITY_ID = "sunlight_entity_id"
 CONF_RAINFALL_ENTITY_ID = "rainfall_entity_id"
 CONF_TEMPERATURE_ENTITY_ID = "temperature_entity_id"
 CONF_COVER_ENTITY_ID = "cover_entity_id"
-CONF_USAGE_ENTITY_ID = "usage_entity_id"
 DEFAULT_POOL_ID = "pool"
 DEFAULT_POOL_NAME = "Pool"
 DEFAULT_POOL_VOLUME_UNIT = "gal"
@@ -32,6 +31,7 @@ SERVICE_GET_PREDICTION = "get_prediction"
 
 EVENT_RECORD_CREATED = f"{DOMAIN}_record_created"
 EVENT_TYPE_CHEMICAL_ADDITION = "chemical_addition"
+EVENT_TYPE_WATER_TEST = "water_test"
 
 RECORD_TYPE_WATER_TEST = "water_test"
 RECORD_TYPE_CHEMICAL_ADDITION = "chemical_addition"
@@ -58,7 +58,6 @@ POOL_CONTEXT_ENTITY_KEYS = (
     CONF_RAINFALL_ENTITY_ID,
     CONF_TEMPERATURE_ENTITY_ID,
     CONF_COVER_ENTITY_ID,
-    CONF_USAGE_ENTITY_ID,
 )
 
 POOL_VOLUME_UNITS = ("gal", "L")
@@ -86,4 +85,28 @@ WATER_TEST_READING_UNITS = {
     WATER_READING_TOTAL_ALKALINITY: "ppm",
     WATER_READING_CYA: "ppm",
     WATER_READING_WATER_CLARITY: "description",
+}
+
+SELECT_LABELS = {
+    "gal": "Gallons",
+    "L": "Liters",
+    "outdoor": "Outdoor",
+    "indoor": "Indoor",
+    "spa": "Spa",
+    "swim_spa": "Swim spa",
+    "plaster": "Plaster",
+    "vinyl": "Vinyl",
+    "fiberglass": "Fiberglass",
+    "tile": "Tile",
+    "painted": "Painted",
+    "chlorine": "Chlorine",
+    "salt_chlorine_generator": "Salt chlorine generator",
+    "bromine": "Bromine",
+    "mineral": "Mineral",
+    "strips": "Test strips",
+    "drop_test": "Drop test",
+    "digital_meter": "Digital meter",
+    "photometer": "Photometer",
+    "pool_store": "Pool store",
+    "other": "Other",
 }

@@ -18,8 +18,8 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_POOL_NAME,
     CONF_POOL_VOLUME,
     CONF_POOL_VOLUME_UNIT,
-    CONF_SUNLIGHT_ENTITY_ID,
     CONF_TYPICALLY_COVERED,
+    CONF_WEATHER_ENTITY_ID,
     DOMAIN,
     SERVICE_GET_PREDICTION,
     SERVICE_LOG_CHEMICAL_ADDITION,
@@ -168,7 +168,7 @@ async def test_prediction_sensor_updates_after_water_test_and_context_change(
     hass,
 ) -> None:
     """Prediction sensors update from records and optional context entities."""
-    hass.states.async_set("sensor.pool_sunlight", "0")
+    hass.states.async_set("weather.home", "sunny", {"uv_index": 0})
     entry = MockConfigEntry(
         domain=DOMAIN,
         title="Pool",
@@ -176,7 +176,7 @@ async def test_prediction_sensor_updates_after_water_test_and_context_change(
         data={
             CONF_POOL_ID: "pool",
             CONF_POOL_NAME: "Pool",
-            CONF_SUNLIGHT_ENTITY_ID: "sensor.pool_sunlight",
+            CONF_WEATHER_ENTITY_ID: "weather.home",
         },
     )
     entry.add_to_hass(hass)
@@ -192,7 +192,7 @@ async def test_prediction_sensor_updates_after_water_test_and_context_change(
     )
     await hass.async_block_till_done()
 
-    state = _sensor_state(hass, "free_chlorine_prediction")
+    state = _sensor_state(hass, "free_chlorine_predicted")
     assert state is not None
     assert state.state != "unknown"
     assert state.attributes["model_inputs"]["sunlight"] == 0.0
@@ -204,12 +204,12 @@ async def test_prediction_sensor_updates_after_water_test_and_context_change(
     assert prediction["series"]
     assert prediction["actuals"]
 
-    hass.states.async_set("sensor.pool_sunlight", "100")
+    hass.states.async_set("weather.home", "sunny", {"uv_index": 10})
     await hass.async_block_till_done()
 
-    updated = _sensor_state(hass, "free_chlorine_prediction")
+    updated = _sensor_state(hass, "free_chlorine_predicted")
     assert updated is not None
-    assert updated.attributes["model_inputs"]["sunlight"] == 100.0
+    assert updated.attributes["model_inputs"]["sunlight"] == 1.0
 
 
 async def test_prediction_sensor_applies_logged_chlorine_addition(hass) -> None:
@@ -244,7 +244,7 @@ async def test_prediction_sensor_applies_logged_chlorine_addition(hass) -> None:
     )
     await hass.async_block_till_done()
 
-    state = _sensor_state(hass, "free_chlorine_prediction")
+    state = _sensor_state(hass, "free_chlorine_predicted")
     assert state is not None
     assert float(state.state) > 0
     assert state.attributes["model_inputs"]["chemical_additions"]
@@ -253,7 +253,7 @@ async def test_prediction_sensor_applies_logged_chlorine_addition(hass) -> None:
 async def test_prediction_sensor_applies_chlorine_addition_without_prior_reading(
     hass,
 ) -> None:
-    """Free chlorine prediction can start from chemical additions alone."""
+    """Free chlorine prediction stays unknown until an actual reading exists."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         title="Spa",
@@ -278,16 +278,47 @@ async def test_prediction_sensor_applies_chlorine_addition_without_prior_reading
     )
     await hass.async_block_till_done()
 
-    state = _sensor_state(hass, "free_chlorine_prediction")
+    state = _sensor_state(hass, "free_chlorine_predicted")
     assert state is not None
-    assert float(state.state) > 0
-    assert (
-        state.attributes["model_inputs"]["baseline"]
-        == "assumed_zero_no_free_chlorine_reading"
-    )
+    assert state.state == "unknown"
 
     prediction = await _get_prediction(hass, state.entity_id)
-    assert prediction["actuals"] == []
+    assert prediction is None
+
+
+async def test_water_test_event_entity_fires(hass) -> None:
+    """Logging a water test triggers the pool's water-test event entity."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id="pool",
+        data={CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"},
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    event_state = next(
+        state
+        for state in hass.states.async_all("event")
+        if state.entity_id.endswith("water_test")
+    )
+    assert event_state.state in ("unknown", "unavailable")
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_WATER_TEST,
+        {"ph": 7.2},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    updated = hass.states.get(event_state.entity_id)
+    assert updated is not None
+    assert updated.attributes["event_type"] == "water_test"
+    assert updated.attributes["readings"]["ph"] == {"value": 7.2, "unit": "pH"}
+    assert updated.attributes[WATER_TESTING_METHOD] == "strips"
 
 
 async def test_chemical_addition_event_entity_fires(hass) -> None:

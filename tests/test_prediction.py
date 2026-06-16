@@ -144,7 +144,7 @@ def test_missing_context_matches_neutral_defaults() -> None:
     assert implicit == explicit
 
 
-def test_cover_weather_and_usage_change_chlorine_prediction_directionally() -> None:
+def test_cover_and_weather_change_chlorine_prediction_directionally() -> None:
     """Context inputs alter free chlorine decay in expected directions."""
     start = datetime(2026, 6, 10, 12, tzinfo=UTC)
     records = [
@@ -160,7 +160,7 @@ def test_cover_weather_and_usage_change_chlorine_prediction_directionally() -> N
         WATER_READING_FREE_CHLORINE,
         now=start + timedelta(days=1),
         pool_profile={CONF_POOL_TYPE: "indoor", CONF_TYPICALLY_COVERED: True},
-        context=PredictionContext(covered=True, sunlight=0, temperature_f=60, usage=0),
+        context=PredictionContext(covered=True, sunlight=0, temperature_f=60),
     )
     exposed = build_prediction(
         records,
@@ -171,7 +171,6 @@ def test_cover_weather_and_usage_change_chlorine_prediction_directionally() -> N
             covered=False,
             sunlight=100,
             temperature_f=95,
-            usage=1,
             rainfall=1,
         ),
     )
@@ -263,8 +262,8 @@ def test_free_chlorine_prediction_applies_dichlor_addition() -> None:
     assert prediction.model_inputs["pool_volume_source"] == "configured_gallons"
 
 
-def test_free_chlorine_prediction_uses_addition_without_prior_reading() -> None:
-    """Chemical-only free chlorine history predicts from an explicit baseline."""
+def test_free_chlorine_prediction_requires_prior_reading_before_addition() -> None:
+    """Chemical additions do not invent an unmeasured free chlorine baseline."""
     addition_time = datetime(2026, 6, 10, 12, tzinfo=UTC)
     prediction = build_prediction(
         [
@@ -282,17 +281,7 @@ def test_free_chlorine_prediction_uses_addition_without_prior_reading() -> None:
         pool_profile={CONF_POOL_VOLUME: 400, CONF_POOL_VOLUME_UNIT: "gal"},
     )
 
-    assert prediction is not None
-    assert prediction.value > 0
-    assert prediction.actuals == []
-    assert prediction.last_actual_value is None
-    assert prediction.last_actual_timestamp is None
-    assert (
-        prediction.model_inputs["baseline"] == "assumed_zero_no_free_chlorine_reading"
-    )
-    assert prediction.model_inputs["chemical_additions"][0]["record_id"] == (
-        "dichlor-dose"
-    )
+    assert prediction is None
 
 
 def test_non_chlorine_prediction_still_requires_actual_reading() -> None:

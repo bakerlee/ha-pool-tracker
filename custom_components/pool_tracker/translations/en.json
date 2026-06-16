@@ -15,11 +15,7 @@
           "default_testing_method": "Default testing method",
           "typically_covered": "Typically covered",
           "weather_entity_id": "Weather entity",
-          "sunlight_entity_id": "Sunlight entity",
-          "rainfall_entity_id": "Rainfall entity",
-          "temperature_entity_id": "Temperature entity",
-          "cover_entity_id": "Cover entity",
-          "usage_entity_id": "Usage entity"
+          "cover_entity_id": "Cover entity"
         }
       }
     }
@@ -39,11 +35,7 @@
           "default_testing_method": "Default testing method",
           "typically_covered": "Typically covered",
           "weather_entity_id": "Weather entity",
-          "sunlight_entity_id": "Sunlight entity",
-          "rainfall_entity_id": "Rainfall entity",
-          "temperature_entity_id": "Temperature entity",
-          "cover_entity_id": "Cover entity",
-          "usage_entity_id": "Usage entity"
+          "cover_entity_id": "Cover entity"
         }
       }
     }
@@ -142,14 +134,14 @@
   },
   "entity": {
     "event": {
+      "water_test": {
+        "name": "Water test"
+      },
       "chemical_addition": {
         "name": "Chemical addition"
       }
     },
     "sensor": {
-      "last_water_test": {
-        "name": "Last water test"
-      },
       "free_chlorine": {
         "name": "Free chlorine"
       },
@@ -172,17 +164,17 @@
           "other": "Other"
         }
       },
-      "free_chlorine_prediction": {
-        "name": "Free chlorine prediction"
+      "free_chlorine_predicted": {
+        "name": "Free chlorine (Predicted)"
       },
-      "ph_prediction": {
-        "name": "pH prediction"
+      "ph_predicted": {
+        "name": "pH (Predicted)"
       },
-      "total_alkalinity_prediction": {
-        "name": "Total alkalinity prediction"
+      "total_alkalinity_predicted": {
+        "name": "Total alkalinity (Predicted)"
       },
-      "cya_prediction": {
-        "name": "CYA/stabilizer prediction"
+      "cya_predicted": {
+        "name": "CYA/stabilizer (Predicted)"
       }
     }
   }
