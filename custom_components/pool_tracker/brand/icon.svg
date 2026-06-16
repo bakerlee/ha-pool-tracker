@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Pool Tracker icon">
+  <circle cx="128" cy="128" r="112" fill="#14a9d6"/>
+  <path fill="#057fa6" d="M64 118c14-16 34-24 64-24s50 8 64 24v52c-14 16-34 24-64 24s-50-8-64-24z"/>
+  <path fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round" stroke-width="18" d="M70 120c14-15 33-23 58-23s44 8 58 23v50c-14 15-33 23-58 23s-44-8-58-23z"/>
+  <path fill="none" stroke="#ffffff" stroke-linecap="round" stroke-width="12" d="M88 143c11 9 24 9 36 0s25-9 36 0 23 9 34 0"/>
+  <path fill="none" stroke="#075d79" stroke-linecap="round" stroke-linejoin="round" stroke-width="12" d="M92 65v58m36-58v58M92 91h36"/>
+</svg>
