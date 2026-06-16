@@ -9,7 +9,10 @@ from typing import Any
 
 from .const import (
     CONF_POOL_TYPE,
+    CONF_POOL_VOLUME,
+    CONF_POOL_VOLUME_UNIT,
     CONF_TYPICALLY_COVERED,
+    RECORD_TYPE_CHEMICAL_ADDITION,
     RECORD_TYPE_WATER_TEST,
     WATER_READING_CYA,
     WATER_READING_FREE_CHLORINE,
@@ -24,6 +27,24 @@ DEFAULT_HISTORY = timedelta(days=14)
 DEFAULT_FUTURE = timedelta(days=3)
 MAX_SERIES_POINTS = 80
 MAX_ACTUAL_POINTS = 40
+DEFAULT_POOL_VOLUME_GAL = 10000
+DEFAULT_SPA_VOLUME_GAL = 400
+DEFAULT_SWIM_SPA_VOLUME_GAL = 1500
+LITERS_PER_GALLON = 3.785411784
+POUNDS_PER_GALLON_WATER = 8.345404
+
+CHLORINE_AVAILABLE_FRACTIONS = {
+    "dichlor": 0.56,
+    "sodium dichlor": 0.56,
+    "sodium dichloro": 0.56,
+    "trichlor": 0.9,
+    "cal hypo": 0.65,
+    "cal-hypo": 0.65,
+    "calcium hypochlorite": 0.65,
+    "liquid chlorine": 0.1,
+    "bleach": 0.06,
+    "sodium hypochlorite": 0.1,
+}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -83,6 +104,16 @@ class _ActualReading:
     testing_method: str | None
 
 
+@dataclass(frozen=True, kw_only=True)
+class _ChemicalEffect:
+    timestamp: datetime
+    record_id: str
+    chemical: str
+    amount: float
+    unit: str
+    free_chlorine_delta: float
+
+
 def build_prediction(
     records: list[PoolRecord],
     reading: str,
@@ -102,6 +133,7 @@ def build_prediction(
     now = _aware_utc(now)
     profile = pool_profile or {}
     context = context or PredictionContext()
+    chemical_effects = _chemical_effects(records, pool_profile=profile)
     window_start = now - history
     future_end = now + future
     uncertainty_memory = 0.0
@@ -124,8 +156,14 @@ def build_prediction(
         cursor = max(actual.timestamp + step, window_start)
         while cursor < segment_end and cursor <= future_end:
             hours = _hours_between(actual.timestamp, cursor)
-            predicted = _predict_value(
-                reading, actual.value, hours, profile=profile, context=context
+            predicted = _predict_at(
+                reading,
+                actual.value,
+                actual.timestamp,
+                cursor,
+                profile=profile,
+                context=context,
+                chemical_effects=chemical_effects,
             )
             uncertainty = _uncertainty(reading, hours, uncertainty_memory)
             if cursor >= window_start:
@@ -147,6 +185,9 @@ def build_prediction(
                 _hours_between(actual.timestamp, next_actual.timestamp),
                 profile=profile,
                 context=context,
+                chemical_effects=chemical_effects,
+                start=actual.timestamp,
+                end=next_actual.timestamp,
             )
             error = abs(next_actual.value - predicted_at_actual)
             uncertainty_memory = (
@@ -157,8 +198,14 @@ def build_prediction(
 
     last_actual = actuals[-1]
     current_hours = max(0.0, _hours_between(last_actual.timestamp, now))
-    current_value = _predict_value(
-        reading, last_actual.value, current_hours, profile=profile, context=context
+    current_value = _predict_at(
+        reading,
+        last_actual.value,
+        last_actual.timestamp,
+        now,
+        profile=profile,
+        context=context,
+        chemical_effects=chemical_effects,
     )
     current_uncertainty = _uncertainty(reading, current_hours, uncertainty_memory)
     current_point = _point(
@@ -197,7 +244,16 @@ def build_prediction(
         upper_bound=current_point["upper_bound"],
         last_actual_value=round(last_actual.value, 3),
         last_actual_timestamp=last_actual.timestamp.isoformat(),
-        model_inputs=context.model_inputs(),
+        model_inputs=_model_inputs(
+            context,
+            [
+                effect
+                for effect in chemical_effects
+                if reading == WATER_READING_FREE_CHLORINE
+                and last_actual.timestamp < effect.timestamp <= now
+            ],
+            profile=profile,
+        ),
         series=bounded_series,
         actuals=bounded_actuals,
     )
@@ -233,10 +289,23 @@ def _predict_value(
     *,
     profile: dict[str, Any],
     context: PredictionContext,
+    chemical_effects: list[_ChemicalEffect] | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
 ) -> float:
     days = max(0.0, hours / 24)
     if reading == WATER_READING_FREE_CHLORINE:
-        value = start_value - _free_chlorine_daily_loss(profile, context) * days
+        if start is not None and end is not None:
+            value = _predict_free_chlorine(
+                start_value,
+                start,
+                end,
+                profile=profile,
+                context=context,
+                chemical_effects=chemical_effects or [],
+            )
+        else:
+            value = start_value - _free_chlorine_daily_loss(profile, context) * days
     elif reading == WATER_READING_PH:
         target = 7.6
         rate = 0.035 + 0.015 * _usage_factor(context)
@@ -248,6 +317,167 @@ def _predict_value(
     else:
         value = start_value
     return _clamp(reading, value)
+
+
+def _predict_at(
+    reading: str,
+    start_value: float,
+    start: datetime,
+    end: datetime,
+    *,
+    profile: dict[str, Any],
+    context: PredictionContext,
+    chemical_effects: list[_ChemicalEffect],
+) -> float:
+    return _predict_value(
+        reading,
+        start_value,
+        _hours_between(start, end),
+        profile=profile,
+        context=context,
+        chemical_effects=chemical_effects,
+        start=start,
+        end=end,
+    )
+
+
+def _predict_free_chlorine(
+    start_value: float,
+    start: datetime,
+    end: datetime,
+    *,
+    profile: dict[str, Any],
+    context: PredictionContext,
+    chemical_effects: list[_ChemicalEffect],
+) -> float:
+    value = start_value
+    cursor = start
+    daily_loss = _free_chlorine_daily_loss(profile, context)
+    for effect in chemical_effects:
+        if effect.timestamp <= start or effect.timestamp > end:
+            continue
+        value -= daily_loss * max(0.0, _hours_between(cursor, effect.timestamp) / 24)
+        value = _clamp(WATER_READING_FREE_CHLORINE, value)
+        value += effect.free_chlorine_delta
+        cursor = effect.timestamp
+    value -= daily_loss * max(0.0, _hours_between(cursor, end) / 24)
+    return _clamp(WATER_READING_FREE_CHLORINE, value)
+
+
+def _chemical_effects(
+    records: list[PoolRecord], *, pool_profile: dict[str, Any]
+) -> list[_ChemicalEffect]:
+    effects: list[_ChemicalEffect] = []
+    for record in records:
+        if record.get("type") != RECORD_TYPE_CHEMICAL_ADDITION:
+            continue
+        delta = _free_chlorine_delta(record, pool_profile=pool_profile)
+        if delta is None or delta <= 0:
+            continue
+        effects.append(
+            _ChemicalEffect(
+                timestamp=parse_utc(record["event_timestamp"]),
+                record_id=record["id"],
+                chemical=str(record.get("chemical", "")),
+                amount=float(record.get("amount", 0)),
+                unit=str(record.get("unit", "")),
+                free_chlorine_delta=delta,
+            )
+        )
+    return sorted(effects, key=lambda effect: (effect.timestamp, effect.record_id))
+
+
+def _free_chlorine_delta(
+    record: PoolRecord, *, pool_profile: dict[str, Any]
+) -> float | None:
+    fraction = _available_chlorine_fraction(str(record.get("chemical", "")))
+    if fraction is None:
+        return None
+    amount_pounds = _amount_pounds(record.get("amount"), str(record.get("unit", "")))
+    if amount_pounds is None:
+        return None
+    volume_gallons, _source = _pool_volume_gallons(pool_profile)
+    water_pounds = volume_gallons * POUNDS_PER_GALLON_WATER
+    return (amount_pounds * fraction / water_pounds) * 1_000_000
+
+
+def _available_chlorine_fraction(chemical: str) -> float | None:
+    normalized = chemical.strip().lower()
+    for needle, fraction in CHLORINE_AVAILABLE_FRACTIONS.items():
+        if needle in normalized:
+            return fraction
+    return None
+
+
+def _amount_pounds(amount: Any, unit: str) -> float | None:
+    try:
+        numeric = float(amount)
+    except TypeError, ValueError:
+        return None
+    if numeric <= 0:
+        return None
+
+    normalized = unit.strip().lower().replace(".", "")
+    if normalized in {"lb", "lbs", "pound", "pounds"}:
+        return numeric
+    if normalized in {"oz", "ounce", "ounces"}:
+        return numeric / 16
+    if normalized in {"g", "gram", "grams"}:
+        return numeric / 453.59237
+    if normalized in {"kg", "kilogram", "kilograms"}:
+        return numeric * 2.2046226218
+    if normalized in {"tsp", "teaspoon", "teaspoons"}:
+        return (numeric / 6) / 16
+    if normalized in {"tbsp", "tablespoon", "tablespoons"}:
+        return (numeric / 2) / 16
+    if normalized in {"cup", "cups"}:
+        return (numeric * 8) / 16
+    return None
+
+
+def _pool_volume_gallons(pool_profile: dict[str, Any]) -> tuple[float, str]:
+    volume = pool_profile.get(CONF_POOL_VOLUME)
+    if volume not in (None, ""):
+        try:
+            gallons = float(volume)
+        except TypeError, ValueError:
+            gallons = 0
+        if gallons > 0:
+            if pool_profile.get(CONF_POOL_VOLUME_UNIT) == "L":
+                return gallons / LITERS_PER_GALLON, "configured_liters"
+            return gallons, "configured_gallons"
+
+    pool_type = pool_profile.get(CONF_POOL_TYPE)
+    if pool_type == "spa":
+        return DEFAULT_SPA_VOLUME_GAL, "default_spa"
+    if pool_type == "swim_spa":
+        return DEFAULT_SWIM_SPA_VOLUME_GAL, "default_swim_spa"
+    return DEFAULT_POOL_VOLUME_GAL, "default_pool"
+
+
+def _model_inputs(
+    context: PredictionContext,
+    chemical_effects: list[_ChemicalEffect],
+    *,
+    profile: dict[str, Any],
+) -> dict[str, Any]:
+    inputs = context.model_inputs()
+    if chemical_effects:
+        volume_gallons, volume_source = _pool_volume_gallons(profile)
+        inputs["pool_volume_gallons"] = round(volume_gallons, 1)
+        inputs["pool_volume_source"] = volume_source
+        inputs["chemical_additions"] = [
+            {
+                "record_id": effect.record_id,
+                "timestamp": effect.timestamp.isoformat(),
+                "chemical": effect.chemical,
+                "amount": effect.amount,
+                "unit": effect.unit,
+                "free_chlorine_delta": round(effect.free_chlorine_delta, 3),
+            }
+            for effect in chemical_effects[-MAX_ACTUAL_POINTS:]
+        ]
+    return inputs
 
 
 def _free_chlorine_daily_loss(

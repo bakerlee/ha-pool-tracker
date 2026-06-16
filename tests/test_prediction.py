@@ -6,12 +6,17 @@ from datetime import UTC, datetime, timedelta
 
 from custom_components.pool_tracker.const import (
     CONF_POOL_TYPE,
+    CONF_POOL_VOLUME,
+    CONF_POOL_VOLUME_UNIT,
     CONF_TYPICALLY_COVERED,
     WATER_READING_CYA,
     WATER_READING_FREE_CHLORINE,
     WATER_READING_PH,
 )
-from custom_components.pool_tracker.models import build_water_test_record
+from custom_components.pool_tracker.models import (
+    build_chemical_addition_record,
+    build_water_test_record,
+)
 from custom_components.pool_tracker.prediction import (
     PredictionContext,
     build_prediction,
@@ -206,3 +211,88 @@ def test_prediction_values_are_clamped() -> None:
     assert ph_prediction.value == 14
     assert cya_prediction is not None
     assert cya_prediction.value == 0
+
+
+def test_free_chlorine_prediction_applies_dichlor_addition() -> None:
+    """Recognized chlorine additions raise predicted free chlorine."""
+    start = datetime(2026, 6, 10, 12, tzinfo=UTC)
+    addition_time = start + timedelta(hours=12)
+    now = start + timedelta(days=1)
+    records = [
+        build_water_test_record(
+            pool_id="pool",
+            readings={WATER_READING_FREE_CHLORINE: 0.0},
+            event_timestamp=start,
+        ),
+        build_chemical_addition_record(
+            pool_id="pool",
+            chemical="dichlor",
+            amount=1,
+            unit="Tbsp",
+            event_timestamp=addition_time,
+            record_id="dichlor-dose",
+        ),
+    ]
+
+    baseline = build_prediction(
+        records[:1],
+        WATER_READING_FREE_CHLORINE,
+        now=now,
+        pool_profile={CONF_POOL_VOLUME: 400, CONF_POOL_VOLUME_UNIT: "gal"},
+    )
+    prediction = build_prediction(
+        records,
+        WATER_READING_FREE_CHLORINE,
+        now=now,
+        pool_profile={CONF_POOL_VOLUME: 400, CONF_POOL_VOLUME_UNIT: "gal"},
+    )
+
+    assert baseline is not None
+    assert prediction is not None
+    assert prediction.value > baseline.value
+    assert prediction.model_inputs["chemical_additions"] == [
+        {
+            "record_id": "dichlor-dose",
+            "timestamp": addition_time.isoformat(),
+            "chemical": "dichlor",
+            "amount": 1.0,
+            "unit": "Tbsp",
+            "free_chlorine_delta": 5.242,
+        }
+    ]
+    assert prediction.model_inputs["pool_volume_source"] == "configured_gallons"
+
+
+def test_later_actual_reading_overrides_prior_chemical_addition() -> None:
+    """A later water test remains the exact anchor after additions."""
+    start = datetime(2026, 6, 10, 12, tzinfo=UTC)
+    latest = start + timedelta(days=1)
+    prediction = build_prediction(
+        [
+            build_water_test_record(
+                pool_id="pool",
+                readings={WATER_READING_FREE_CHLORINE: 0.0},
+                event_timestamp=start,
+            ),
+            build_chemical_addition_record(
+                pool_id="pool",
+                chemical="dichlor",
+                amount=1,
+                unit="Tbsp",
+                event_timestamp=start + timedelta(hours=12),
+            ),
+            build_water_test_record(
+                pool_id="pool",
+                readings={WATER_READING_FREE_CHLORINE: 1.5},
+                event_timestamp=latest,
+            ),
+        ],
+        WATER_READING_FREE_CHLORINE,
+        now=latest,
+        pool_profile={CONF_POOL_VOLUME: 400, CONF_POOL_VOLUME_UNIT: "gal"},
+    )
+
+    assert prediction is not None
+    assert prediction.value == 1.5
+    assert prediction.uncertainty == 0
+    assert "chemical_additions" not in prediction.model_inputs

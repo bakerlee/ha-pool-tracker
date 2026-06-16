@@ -89,11 +89,14 @@ Each prediction sensor state is the current estimated value. Attributes include:
 The v1 model is intentionally transparent and resilient to sparse data:
 
 - Free chlorine decays over time, faster with outdoor, uncovered, sunny, warm, rainy, or high-usage context.
+- Recognized chlorine additions, including dichlor, are estimated from the logged amount, unit, and pool volume, then included in the free chlorine prediction.
 - pH drifts slowly toward a neutral/default target.
 - Total alkalinity and CYA drift slowly, with rainfall treated as possible dilution context.
 - Missing optional context falls back to neutral defaults.
 
 Weather context uses the configured weather entity's current attributes, and forecast attributes when the weather entity exposes them. Explicit configured sunlight, rainfall, and temperature sensor entities take precedence over weather-derived values.
+
+For chemical additions, Pool Tracker uses configured volume when available. If volume is missing, it falls back to a rough default by pool type and reports the volume source in `model_inputs`. This is still an estimate, not a dosing recommendation.
 
 Example ApexCharts-style dashboard data source:
 

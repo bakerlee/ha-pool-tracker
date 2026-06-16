@@ -19,6 +19,7 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_SUNLIGHT_ENTITY_ID,
     CONF_TYPICALLY_COVERED,
     DOMAIN,
+    SERVICE_LOG_CHEMICAL_ADDITION,
     SERVICE_LOG_WATER_TEST,
     WATER_TESTING_METHOD,
 )
@@ -201,6 +202,44 @@ async def test_prediction_sensor_updates_after_water_test_and_context_change(
     updated = _sensor_state(hass, "free_chlorine_prediction")
     assert updated is not None
     assert updated.attributes["model_inputs"]["sunlight"] == 100.0
+
+
+async def test_prediction_sensor_applies_logged_chlorine_addition(hass) -> None:
+    """Chemical addition records influence the free chlorine prediction sensor."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Spa",
+        unique_id="spa",
+        data={
+            CONF_POOL_ID: "spa",
+            CONF_POOL_NAME: "Spa",
+            CONF_POOL_VOLUME: 400,
+            CONF_POOL_VOLUME_UNIT: "gal",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_WATER_TEST,
+        {"free_chlorine": 0.0},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_CHEMICAL_ADDITION,
+        {"chemical": "dichlor", "amount": 1, "unit": "Tbsp"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    state = _sensor_state(hass, "free_chlorine_prediction")
+    assert state is not None
+    assert float(state.state) > 0
+    assert state.attributes["model_inputs"]["chemical_additions"]
 
 
 def _sensor_state(hass, suffix: str):
