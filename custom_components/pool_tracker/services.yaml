@@ -98,19 +98,64 @@ log_chemical_addition:
       required: true
       example: dichlor
       selector:
-        text:
+        select:
+          options:
+            - value: dichlor
+              label: Dichlor
+            - value: trichlor
+              label: Trichlor
+            - value: calcium hypochlorite
+              label: Calcium hypochlorite
+            - value: liquid chlorine
+              label: Liquid chlorine
+            - value: bleach
+              label: Bleach
+            - value: muriatic acid
+              label: Muriatic acid
+            - value: soda ash
+              label: Soda ash
+            - value: baking soda
+              label: Baking soda
+            - value: cyanuric acid
+              label: Cyanuric acid
+            - value: salt
+              label: Salt
+            - value: algaecide
+              label: Algaecide
+            - value: clarifier
+              label: Clarifier
+            - value: calcium hardness increaser
+              label: Calcium hardness increaser
     amount:
       required: true
-      example: 1
+      example: 0.5
       selector:
         number:
           min: 0
           mode: box
+          step: any
     unit:
       required: true
-      example: Tbsp
+      example: oz
       selector:
-        text:
+        select:
+          options:
+            - value: g
+              label: Grams
+            - value: kg
+              label: Kilograms
+            - value: oz
+              label: Ounces
+            - value: lb
+              label: Pounds
+            - value: mL
+              label: Milliliters
+            - value: L
+              label: Liters
+            - value: fl. oz.
+              label: Fluid ounces
+            - value: gal
+              label: Gallons
     notes:
       example: Human-entered record only.
       selector:

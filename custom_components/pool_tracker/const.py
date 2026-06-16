@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
+
+from homeassistant.const import UnitOfMass, UnitOfVolume
+
 DOMAIN = "pool_tracker"
 PLATFORMS = ["event", "sensor"]
 
@@ -31,6 +35,42 @@ EVENT_TYPE_WATER_TEST = "water_test"
 
 RECORD_TYPE_WATER_TEST = "water_test"
 RECORD_TYPE_CHEMICAL_ADDITION = "chemical_addition"
+
+
+class PoolChemical(StrEnum):
+    """Chemicals accepted by the chemical-addition service."""
+
+    DICHLOR = "dichlor"
+    TRICHLOR = "trichlor"
+    CALCIUM_HYPOCHLORITE = "calcium hypochlorite"
+    LIQUID_CHLORINE = "liquid chlorine"
+    BLEACH = "bleach"
+    MURIATIC_ACID = "muriatic acid"
+    SODA_ASH = "soda ash"
+    BAKING_SODA = "baking soda"
+    CYANURIC_ACID = "cyanuric acid"
+    SALT = "salt"
+    ALGAECIDE = "algaecide"
+    CLARIFIER = "clarifier"
+    CALCIUM_HARDNESS_INCREASER = "calcium hardness increaser"
+
+
+CHEMICAL_OPTIONS = tuple(chemical.value for chemical in PoolChemical)
+CHEMICAL_AMOUNT_WEIGHT_UNITS = (
+    UnitOfMass.GRAMS,
+    UnitOfMass.KILOGRAMS,
+    UnitOfMass.OUNCES,
+    UnitOfMass.POUNDS,
+)
+CHEMICAL_AMOUNT_VOLUME_UNITS = (
+    UnitOfVolume.MILLILITERS,
+    UnitOfVolume.LITERS,
+    UnitOfVolume.FLUID_OUNCES,
+    UnitOfVolume.GALLONS,
+)
+CHEMICAL_AMOUNT_UNITS = tuple(
+    unit.value for unit in CHEMICAL_AMOUNT_WEIGHT_UNITS + CHEMICAL_AMOUNT_VOLUME_UNITS
+)
 
 WATER_READING_FREE_CHLORINE = "free_chlorine"
 WATER_READING_PH = "ph"
@@ -76,6 +116,25 @@ WATER_TEST_READING_UNITS = {
 }
 
 SELECT_LABELS = {
+    "dichlor": "Dichlor",
+    "trichlor": "Trichlor",
+    "calcium hypochlorite": "Calcium hypochlorite",
+    "liquid chlorine": "Liquid chlorine",
+    "bleach": "Bleach",
+    "muriatic acid": "Muriatic acid",
+    "soda ash": "Soda ash",
+    "baking soda": "Baking soda",
+    "cyanuric acid": "Cyanuric acid",
+    "salt": "Salt",
+    "algaecide": "Algaecide",
+    "clarifier": "Clarifier",
+    "calcium hardness increaser": "Calcium hardness increaser",
+    "g": "Grams",
+    "kg": "Kilograms",
+    "oz": "Ounces",
+    "lb": "Pounds",
+    "mL": "Milliliters",
+    "fl. oz.": "Fluid ounces",
     "gal": "Gallons",
     "L": "Liters",
     "outdoor": "Outdoor",

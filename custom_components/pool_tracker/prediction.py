@@ -19,6 +19,8 @@ from .const import (
     WATER_READING_PH,
     WATER_READING_TOTAL_ALKALINITY,
     WATER_TEST_READING_UNITS,
+    UnitOfMass,
+    UnitOfVolume,
 )
 from .models import PoolRecord, parse_utc
 
@@ -519,14 +521,30 @@ def _amount_pounds(amount: Any, unit: str) -> float | None:
         return None
 
     normalized = unit.strip().lower().replace(".", "")
-    if normalized in {"lb", "lbs", "pound", "pounds"}:
+    if normalized in {UnitOfMass.POUNDS.value, "lbs", "pound", "pounds"}:
         return numeric
-    if normalized in {"oz", "ounce", "ounces"}:
+    if normalized in {UnitOfMass.OUNCES.value, "ounce", "ounces"}:
         return numeric / 16
-    if normalized in {"g", "gram", "grams"}:
+    if normalized in {UnitOfMass.GRAMS.value, "gram", "grams"}:
         return numeric / 453.59237
-    if normalized in {"kg", "kilogram", "kilograms"}:
+    if normalized in {UnitOfMass.KILOGRAMS.value, "kilogram", "kilograms"}:
         return numeric * 2.2046226218
+    if normalized in {
+        UnitOfVolume.FLUID_OUNCES.value.replace(".", ""),
+        "fluid ounce",
+        "fluid ounces",
+    }:
+        return (numeric / 128) * POUNDS_PER_GALLON_WATER
+    if normalized in {
+        UnitOfVolume.MILLILITERS.value.lower(),
+        "milliliter",
+        "milliliters",
+    }:
+        return (numeric / (LITERS_PER_GALLON * 1000)) * POUNDS_PER_GALLON_WATER
+    if normalized in {UnitOfVolume.LITERS.value.lower(), "liter", "liters"}:
+        return (numeric / LITERS_PER_GALLON) * POUNDS_PER_GALLON_WATER
+    if normalized in {UnitOfVolume.GALLONS.value, "gallon", "gallons"}:
+        return numeric * POUNDS_PER_GALLON_WATER
     if normalized in {"tsp", "teaspoon", "teaspoons"}:
         return (numeric / 6) / 16
     if normalized in {"tbsp", "tablespoon", "tablespoons"}:

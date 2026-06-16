@@ -76,8 +76,8 @@ async def test_timestamp_backfilling(store: PoolTrackerStore) -> None:
     record = build_chemical_addition_record(
         pool_id="pool",
         chemical="dichlor",
-        amount=1,
-        unit="Tbsp",
+        amount=0.5,
+        unit="oz",
         event_timestamp=datetime(2026, 6, 10, 19, 30, tzinfo=UTC),
         created_timestamp=datetime(2026, 6, 15, 12, 0, tzinfo=UTC),
     )
@@ -157,3 +157,22 @@ def test_water_test_requires_content() -> None:
     """Water-test records require at least one explicit field or a note."""
     with pytest.raises(ValueError, match="at least one"):
         build_water_test_record(pool_id="pool", readings={})
+
+
+def test_chemical_addition_requires_supported_chemical_and_unit() -> None:
+    """Chemical-addition records use bounded chemical and unit values."""
+    with pytest.raises(ValueError, match="Unsupported chemical"):
+        build_chemical_addition_record(
+            pool_id="pool",
+            chemical="mystery powder",
+            amount=1,
+            unit="oz",
+        )
+
+    with pytest.raises(ValueError, match="Unsupported chemical amount unit"):
+        build_chemical_addition_record(
+            pool_id="pool",
+            chemical="dichlor",
+            amount=1,
+            unit="Tbsp",
+        )

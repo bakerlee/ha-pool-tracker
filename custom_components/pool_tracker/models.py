@@ -8,6 +8,8 @@ from typing import Any
 from uuid import uuid4
 
 from .const import (
+    CHEMICAL_AMOUNT_UNITS,
+    CHEMICAL_OPTIONS,
     RECORD_TYPE_CHEMICAL_ADDITION,
     RECORD_TYPE_WATER_TEST,
     WATER_READING_CYA,
@@ -117,10 +119,14 @@ def build_chemical_addition_record(
     unit = unit.strip()
     if not chemical:
         raise ValueError("Chemical is required.")
+    if chemical not in CHEMICAL_OPTIONS:
+        raise ValueError(f"Unsupported chemical: {chemical}.")
     if amount <= 0:
         raise ValueError("Amount must be greater than zero.")
     if not unit:
         raise ValueError("Unit is required.")
+    if unit not in CHEMICAL_AMOUNT_UNITS:
+        raise ValueError(f"Unsupported chemical amount unit: {unit}.")
 
     return _base_record(
         pool_id=pool_id,

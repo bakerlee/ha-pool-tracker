@@ -51,11 +51,22 @@ def test_chemical_addition_service_validation_requires_core_fields() -> None:
         schema({"chemical": "dichlor", "amount": 1})
 
     with pytest.raises(vol.Invalid):
-        schema({"chemical": "dichlor", "amount": 0, "unit": "Tbsp"})
+        schema({"chemical": "dichlor", "amount": 0, "unit": "oz"})
 
-    assert schema({"chemical": "dichlor", "amount": "1", "unit": "Tbsp"}) == {
+    assert schema({"chemical": "dichlor", "amount": "0.5", "unit": "oz"}) == {
         "chemical": "dichlor",
-        "amount": 1.0,
-        "unit": "Tbsp",
+        "amount": 0.5,
+        "unit": "oz",
         "source": "service",
     }
+
+
+def test_chemical_addition_service_validation_rejects_unknown_values() -> None:
+    """Chemical addition service values are bounded enums."""
+    schema = _chemical_addition_service_schema()
+
+    with pytest.raises(vol.Invalid):
+        schema({"chemical": "mystery powder", "amount": 1, "unit": "oz"})
+
+    with pytest.raises(vol.Invalid):
+        schema({"chemical": "dichlor", "amount": 1, "unit": "Tbsp"})

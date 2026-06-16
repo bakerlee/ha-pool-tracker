@@ -105,15 +105,15 @@
         },
         "chemical": {
           "name": "Chemical",
-          "description": "Human-entered chemical name or type."
+          "description": "Chemical type."
         },
         "amount": {
           "name": "Amount",
-          "description": "Human-entered amount."
+          "description": "Amount added."
         },
         "unit": {
           "name": "Unit",
-          "description": "Unit for the amount."
+          "description": "Home Assistant mass or volume unit for the amount."
         },
         "notes": {
           "name": "Notes",

@@ -12,6 +12,8 @@ from homeassistant.core import SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 from .const import (
+    CHEMICAL_AMOUNT_UNITS,
+    CHEMICAL_OPTIONS,
     CONF_DEFAULT_TESTING_METHOD,
     CONF_POOL_ID,
     CONF_POOL_NAME,
@@ -115,9 +117,9 @@ def _chemical_addition_service_schema():
             vol.Optional("event_timestamp"): cv.datetime,
             vol.Optional("source", default="service"): cv.string,
             vol.Optional("notes"): cv.string,
-            vol.Required("chemical"): cv.string,
+            vol.Required("chemical"): vol.In(CHEMICAL_OPTIONS),
             vol.Required("amount"): _positive_number,
-            vol.Required("unit"): cv.string,
+            vol.Required("unit"): vol.In(CHEMICAL_AMOUNT_UNITS),
         }
     )
 

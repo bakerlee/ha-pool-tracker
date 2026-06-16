@@ -275,7 +275,7 @@ async def test_prediction_sensor_applies_logged_chlorine_addition(hass) -> None:
     await hass.services.async_call(
         DOMAIN,
         SERVICE_LOG_CHEMICAL_ADDITION,
-        {"chemical": "dichlor", "amount": 1, "unit": "Tbsp"},
+        {"chemical": "dichlor", "amount": 0.5, "unit": "oz"},
         blocking=True,
     )
     await hass.async_block_till_done()
@@ -310,7 +310,7 @@ async def test_prediction_sensor_applies_chlorine_addition_without_prior_reading
     await hass.services.async_call(
         DOMAIN,
         SERVICE_LOG_CHEMICAL_ADDITION,
-        {"chemical": "dichlor", "amount": 1, "unit": "Tbsp"},
+        {"chemical": "dichlor", "amount": 0.5, "unit": "oz"},
         blocking=True,
     )
     await hass.async_block_till_done()
@@ -423,7 +423,7 @@ async def test_chemical_addition_event_entity_fires(hass) -> None:
     await hass.services.async_call(
         DOMAIN,
         SERVICE_LOG_CHEMICAL_ADDITION,
-        {"chemical": "dichlor", "amount": 1, "unit": "Tbsp"},
+        {"chemical": "dichlor", "amount": 0.5, "unit": "oz"},
         blocking=True,
     )
     await hass.async_block_till_done()
@@ -432,7 +432,7 @@ async def test_chemical_addition_event_entity_fires(hass) -> None:
     assert updated is not None
     assert updated.attributes["event_type"] == "chemical_addition"
     assert updated.attributes["chemical"] == "dichlor"
-    assert updated.attributes["summary"] == "dichlor: 1 Tbsp"
+    assert updated.attributes["summary"] == "dichlor: 0.5 oz"
 
 
 async def _get_prediction(hass, entity_id: str) -> dict[str, Any]:

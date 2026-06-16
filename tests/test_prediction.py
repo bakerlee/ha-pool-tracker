@@ -226,8 +226,8 @@ def test_free_chlorine_prediction_applies_dichlor_addition() -> None:
         build_chemical_addition_record(
             pool_id="pool",
             chemical="dichlor",
-            amount=1,
-            unit="Tbsp",
+            amount=0.5,
+            unit="oz",
             event_timestamp=addition_time,
             record_id="dichlor-dose",
         ),
@@ -254,8 +254,8 @@ def test_free_chlorine_prediction_applies_dichlor_addition() -> None:
             "record_id": "dichlor-dose",
             "timestamp": addition_time.isoformat(),
             "chemical": "dichlor",
-            "amount": 1.0,
-            "unit": "Tbsp",
+            "amount": 0.5,
+            "unit": "oz",
             "free_chlorine_delta": 5.242,
         }
     ]
@@ -265,16 +265,16 @@ def test_free_chlorine_prediction_applies_dichlor_addition() -> None:
             "timestamp": addition_time.isoformat(),
             "record_id": "dichlor-dose",
             "chemical": "dichlor",
-            "amount": 1,
-            "unit": "Tbsp",
-            "summary": "dichlor: 1 Tbsp",
+            "amount": 0.5,
+            "unit": "oz",
+            "summary": "dichlor: 0.5 oz",
             "value": 5.242,
             "free_chlorine_delta": 5.242,
         }
     ]
 
 
-def test_chemical_addition_markers_include_unrecognized_chemicals() -> None:
+def test_chemical_addition_markers_include_model_neutral_chemicals() -> None:
     """Chart markers include all chemical additions, even model-neutral ones."""
     start = datetime(2026, 6, 10, 12, tzinfo=UTC)
     addition_time = start + timedelta(hours=12)
@@ -323,8 +323,8 @@ def test_free_chlorine_prediction_requires_prior_reading_before_addition() -> No
             build_chemical_addition_record(
                 pool_id="pool",
                 chemical="dichlor",
-                amount=1,
-                unit="Tbsp",
+                amount=0.5,
+                unit="oz",
                 event_timestamp=addition_time,
                 record_id="dichlor-dose",
             )
@@ -347,8 +347,8 @@ def test_non_chlorine_prediction_still_requires_actual_reading() -> None:
                 build_chemical_addition_record(
                     pool_id="pool",
                     chemical="dichlor",
-                    amount=1,
-                    unit="Tbsp",
+                    amount=0.5,
+                    unit="oz",
                     event_timestamp=addition_time,
                 )
             ],
@@ -373,8 +373,8 @@ def test_later_actual_reading_overrides_prior_chemical_addition() -> None:
             build_chemical_addition_record(
                 pool_id="pool",
                 chemical="dichlor",
-                amount=1,
-                unit="Tbsp",
+                amount=0.5,
+                unit="oz",
                 event_timestamp=start + timedelta(hours=12),
             ),
             build_water_test_record(

@@ -47,8 +47,8 @@ Use `pool_tracker.log_chemical_addition` for human-entered additions.
 service: pool_tracker.log_chemical_addition
 data:
   chemical: dichlor
-  amount: 1
-  unit: Tbsp
+  amount: 0.5
+  unit: oz
   source: agent
 ```
 
@@ -57,6 +57,10 @@ Required fields:
 - `chemical`
 - `amount`
 - `unit`
+
+`chemical` must be one of Pool Tracker's supported chemical values, and `unit`
+must be a Home Assistant mass or volume unit such as `oz`, `lb`, `g`, `kg`,
+`fl. oz.`, `mL`, `L`, or `gal`.
 
 Optional fields:
 
