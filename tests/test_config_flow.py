@@ -8,6 +8,7 @@ pytest.importorskip("homeassistant")
 import voluptuous_serialize  # noqa: E402
 from homeassistant import config_entries  # noqa: E402
 from homeassistant.helpers import config_validation as cv  # noqa: E402
+from pytest_homeassistant_custom_component.common import MockConfigEntry  # noqa: E402
 
 from custom_components.pool_tracker.config_flow import (  # noqa: E402
     _pool_profile_schema,
@@ -15,6 +16,7 @@ from custom_components.pool_tracker.config_flow import (  # noqa: E402
 )
 from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_DEFAULT_TESTING_METHOD,
+    CONF_POOL_ID,
     CONF_POOL_NAME,
     CONF_POOL_TYPE,
     CONF_POOL_VOLUME,
@@ -22,7 +24,6 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_POOLS,
     CONF_SANITIZER_TYPE,
     CONF_SURFACE_TYPE,
-    DEFAULT_ENTRY_TITLE,
     DOMAIN,
 )
 
@@ -68,8 +69,8 @@ def test_pool_profile_schema_serializes_for_home_assistant_forms() -> None:
     ]
 
 
-async def test_config_flow_uses_integration_title_for_entry(hass) -> None:
-    """The config entry groups Pool Tracker; the pool name belongs to the device."""
+async def test_config_flow_uses_pool_name_for_entry(hass) -> None:
+    """Each Pool Tracker config entry represents one pool."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": config_entries.SOURCE_USER},
@@ -77,5 +78,30 @@ async def test_config_flow_uses_integration_title_for_entry(hass) -> None:
     )
 
     assert result["type"] == "create_entry"
-    assert result["title"] == DEFAULT_ENTRY_TITLE
+    assert result["title"] == "Rooftop Pool"
+    assert result["data"][CONF_POOLS][0][CONF_POOL_ID] == "rooftop_pool"
     assert result["data"][CONF_POOLS][0][CONF_POOL_NAME] == "Rooftop Pool"
+
+
+async def test_config_flow_allows_multiple_pools(hass) -> None:
+    """Additional pools create additional config entries instead of aborting."""
+    existing = MockConfigEntry(
+        domain=DOMAIN,
+        title="Rooftop Pool",
+        data={
+            CONF_POOLS: [
+                {CONF_POOL_ID: "rooftop_pool", CONF_POOL_NAME: "Rooftop Pool"}
+            ]
+        },
+    )
+    existing.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+        data={CONF_POOL_NAME: "Rooftop Pool"},
+    )
+
+    assert result["type"] == "create_entry"
+    assert result["title"] == "Rooftop Pool"
+    assert result["data"][CONF_POOLS][0][CONF_POOL_ID] == "rooftop_pool_2"

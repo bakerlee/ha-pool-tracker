@@ -103,7 +103,7 @@ class PoolTrackerStore:
 
     def _migrate(self, loaded: StorageData | None) -> StorageData:
         if not loaded:
-            return {"version": 1, "pools": {self._default_pool_id: {"records": []}}}
+            return {"version": 1, "pools": {}}
 
         version = loaded.get("version", 1)
         if version != 1:
@@ -112,7 +112,6 @@ class PoolTrackerStore:
         data = deepcopy(loaded)
         data.setdefault("version", 1)
         data.setdefault("pools", {})
-        data["pools"].setdefault(self._default_pool_id, {"records": []})
         for pool in data["pools"].values():
             pool.setdefault("records", [])
         return data

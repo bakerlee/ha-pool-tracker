@@ -4,7 +4,6 @@ from __future__ import annotations
 
 DOMAIN = "pool_tracker"
 PLATFORMS = ["sensor"]
-DEFAULT_ENTRY_TITLE = "Pool Tracker"
 
 CONF_POOLS = "pools"
 CONF_POOL_ID = "pool_id"

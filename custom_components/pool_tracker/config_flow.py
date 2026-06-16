@@ -7,6 +7,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.helpers import selector
+from homeassistant.util import slugify
 
 from .const import (
     CONF_DEFAULT_TESTING_METHOD,
@@ -18,7 +19,6 @@ from .const import (
     CONF_POOLS,
     CONF_SANITIZER_TYPE,
     CONF_SURFACE_TYPE,
-    DEFAULT_ENTRY_TITLE,
     DEFAULT_POOL_ID,
     DEFAULT_POOL_NAME,
     DEFAULT_POOL_VOLUME_UNIT,
@@ -54,6 +54,33 @@ def _select(options: tuple[str, ...]) -> selector.SelectSelector:
     )
 
 
+def _pool_id_from_name(name: str) -> str:
+    """Return a stable pool id candidate from a display name."""
+    return slugify(name) or DEFAULT_POOL_ID
+
+
+def _configured_pool_ids(hass) -> set[str]:
+    """Return pool ids already configured for Pool Tracker."""
+    pool_ids: set[str] = set()
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        pool = pool_config_from_entry(entry)
+        if pool_id := pool.get(CONF_POOL_ID):
+            pool_ids.add(pool_id)
+    return pool_ids
+
+
+def _unique_pool_id(hass, name: str) -> str:
+    """Generate a pool id that does not collide with existing entries."""
+    configured_pool_ids = _configured_pool_ids(hass)
+    base = _pool_id_from_name(name)
+    candidate = base
+    suffix = 2
+    while candidate in configured_pool_ids:
+        candidate = f"{base}_{suffix}"
+        suffix += 1
+    return candidate
+
+
 def _pool_profile_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     defaults = defaults or {}
     schema: dict[Any, Any] = {
@@ -86,11 +113,14 @@ def _pool_profile_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     return vol.Schema(schema)
 
 
-def build_pool_config(user_input: dict[str, Any]) -> dict[str, Any]:
+def build_pool_config(
+    user_input: dict[str, Any], *, pool_id: str | None = None
+) -> dict[str, Any]:
     """Build a normalized single-pool config record."""
+    pool_name = user_input[CONF_POOL_NAME].strip() or DEFAULT_POOL_NAME
     pool: dict[str, Any] = {
-        CONF_POOL_ID: "pool",
-        CONF_POOL_NAME: user_input[CONF_POOL_NAME].strip() or DEFAULT_POOL_NAME,
+        CONF_POOL_ID: pool_id or _pool_id_from_name(pool_name),
+        CONF_POOL_NAME: pool_name,
         CONF_POOL_VOLUME_UNIT: user_input.get(
             CONF_POOL_VOLUME_UNIT, DEFAULT_POOL_VOLUME_UNIT
         ),
@@ -134,12 +164,12 @@ class PoolTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            await self.async_set_unique_id(DOMAIN)
-            self._abort_if_unique_id_configured()
-
-            pool = build_pool_config(user_input)
+            pool = build_pool_config(
+                user_input,
+                pool_id=_unique_pool_id(self.hass, user_input[CONF_POOL_NAME]),
+            )
             return self.async_create_entry(
-                title=DEFAULT_ENTRY_TITLE,
+                title=pool[CONF_POOL_NAME],
                 data={CONF_POOLS: [pool]},
             )
 
@@ -156,9 +186,13 @@ class PoolTrackerOptionsFlow(config_entries.OptionsFlowWithReload):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         """Update the single-pool profile."""
         if user_input is not None:
-            pool = build_pool_config(user_input)
+            current_pool = pool_config_from_entry(self.config_entry)
+            pool = build_pool_config(
+                user_input,
+                pool_id=current_pool.get(CONF_POOL_ID, DEFAULT_POOL_ID),
+            )
             self.hass.config_entries.async_update_entry(
-                self.config_entry, title=DEFAULT_ENTRY_TITLE
+                self.config_entry, title=pool[CONF_POOL_NAME]
             )
             return self.async_create_entry(title="", data={CONF_POOLS: [pool]})
 

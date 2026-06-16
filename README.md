@@ -2,7 +2,7 @@
 
 Pool Tracker is a free, local-first Home Assistant custom integration for manual pool maintenance logging.
 
-It stores an append-only event log for water tests and chemical additions, exposes read-only derived sensors, and registers narrow Home Assistant services that dashboards, automations, OpenClaw, or other agents can call.
+It stores an append-only event log for water tests and chemical additions, exposes read-only derived sensors, and registers narrow Home Assistant service actions that dashboards, automations, OpenClaw, or other agents can call.
 
 ## Scope
 
@@ -22,21 +22,21 @@ Pool Tracker is independent of PoolMath, Leslie's, LaMotte, PoolSense, Flipr, Ha
 2. Select category `Integration`.
 3. Install `Pool Tracker`.
 4. Restart Home Assistant.
-5. Go to **Settings > Devices & services > Add integration**.
+5. Go to **Settings > Devices & services > Add device**.
 6. Search for `Pool Tracker`.
-7. Create the first pool. The integration entry is named `Pool Tracker`; the pool device display name defaults to `Pool`.
+7. Create a pool. Each configured pool appears as its own Pool Tracker device.
 
 ### Manual
 
 1. Copy `custom_components/pool_tracker` into your Home Assistant config directory at `custom_components/pool_tracker`.
 2. Restart Home Assistant.
-3. Add the integration through **Settings > Devices & services**.
+3. Add a Pool Tracker device through **Settings > Devices & services**.
 
 Do not configure this integration in YAML. Stable configuration is stored in a Home Assistant config entry.
 
 ## Pool Profile
 
-The config entry stores a small pool profile for future calculations and record context:
+Each config entry represents one pool and stores a small pool profile for future calculations and record context:
 
 - Volume and volume unit
 - Pool type, such as outdoor, indoor, spa, or swim spa
@@ -48,7 +48,7 @@ These attributes can be changed from the integration options. They are context o
 
 ## Entities
 
-Pool Tracker exposes read-only sensors derived from the event log:
+Each configured pool device exposes read-only sensors derived from the event log:
 
 - Last water test
 - Last chemical addition
@@ -61,7 +61,7 @@ Pool Tracker exposes read-only sensors derived from the event log:
 
 These sensors are display surfaces. They are not mutable input fields.
 
-## Services
+## Service Actions
 
 ### `pool_tracker.log_water_test`
 
@@ -110,7 +110,7 @@ data:
   source: agent
 ```
 
-Both services return a `record_id` when called with Home Assistant service response support, and fire a `pool_tracker_record_created` event containing the record id, pool id, and record type.
+Both service actions return a `record_id` when called with Home Assistant service response support, and fire a `pool_tracker_record_created` event containing the record id, pool id, and record type.
 
 ## OpenClaw Examples
 
@@ -200,6 +200,6 @@ ruff format .
 
 ## Known Limitations
 
-- V1 supports one configured pool, stored in a multi-pool-ready config shape.
-- The backend and services are implemented first; a full custom panel is not included yet.
+- V1 supports multiple configured pools, with one Pool Tracker device per pool.
+- The backend and service actions are implemented first; a full custom panel is not included yet.
 - There is no chemistry guidance, dosing advice, equipment control, or verification that a logged action physically happened.

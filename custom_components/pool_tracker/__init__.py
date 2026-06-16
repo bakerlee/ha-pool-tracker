@@ -125,7 +125,7 @@ def _chemical_addition_service_schema():
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
-    """Set up Pool Tracker services."""
+    """Set up Pool Tracker service actions."""
     from homeassistant.core import SupportsResponse
 
     from .const import (
@@ -142,8 +142,11 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         WATER_TESTING_METHOD,
     )
     from .models import build_chemical_addition_record, build_water_test_record
+    from .store import PoolTrackerStore, create_home_assistant_store
 
-    hass.data.setdefault(DOMAIN, {"entries": {}})
+    event_store = PoolTrackerStore(create_home_assistant_store(hass))
+    await event_store.async_load()
+    hass.data[DOMAIN] = {"entries": {}, "store": event_store}
 
     async def handle_log_water_test(call: ServiceCall) -> dict[str, str]:
         runtime, pool_id = _runtime_for_call(hass, call.data.get(CONF_POOL_ID))
@@ -207,33 +210,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: PoolTrackerConfigEntry) 
     """Set up Pool Tracker from a config entry."""
     from .const import (
         CONF_POOL_NAME,
-        CONF_POOLS,
-        DEFAULT_ENTRY_TITLE,
-        DEFAULT_POOL_ID,
         DEFAULT_POOL_NAME,
         DOMAIN,
         PLATFORMS,
     )
-    from .store import PoolTrackerStore, create_home_assistant_store
 
-    _normalize_entry_metadata(
-        hass,
-        entry,
-        conf_pools=CONF_POOLS,
-        conf_pool_name=CONF_POOL_NAME,
-        default_entry_title=DEFAULT_ENTRY_TITLE,
-        default_pool_name=DEFAULT_POOL_NAME,
-    )
     pool_profiles = _pool_profiles_from_entry(entry)
     pools = {
         pool_id: profile.get(CONF_POOL_NAME, DEFAULT_POOL_NAME)
         for pool_id, profile in pool_profiles.items()
     }
-    default_pool_id = next(iter(pools), DEFAULT_POOL_ID)
-    store = PoolTrackerStore(
-        create_home_assistant_store(hass), default_pool_id=default_pool_id
-    )
-    await store.async_load()
+    store = hass.data[DOMAIN]["store"]
 
     entry.runtime_data = PoolTrackerRuntime(
         store=store, pools=pools, pool_profiles=pool_profiles
@@ -320,39 +307,6 @@ def _pool_profiles_from_entry(
         pool.setdefault(CONF_DEFAULT_TESTING_METHOD, DEFAULT_TESTING_METHOD)
         profiles[pool_id] = pool
     return profiles
-
-
-def _normalize_entry_metadata(
-    hass: HomeAssistant,
-    entry: PoolTrackerConfigEntry,
-    *,
-    conf_pools: str,
-    conf_pool_name: str,
-    default_entry_title: str,
-    default_pool_name: str,
-) -> None:
-    """Keep the integration entry distinct from the virtual pool device."""
-    if entry.title == default_entry_title:
-        return
-
-    updates: dict[str, Any] = {"title": default_entry_title}
-    pool_source = "options" if entry.options.get(conf_pools) else "data"
-    raw_pools = entry.options.get(conf_pools) or entry.data.get(conf_pools)
-    if (
-        entry.title
-        and entry.title != default_pool_name
-        and isinstance(raw_pools, list)
-        and len(raw_pools) == 1
-    ):
-        pool = dict(raw_pools[0])
-        if pool.get(conf_pool_name, default_pool_name) == default_pool_name:
-            pool[conf_pool_name] = entry.title
-            if pool_source == "options":
-                updates["options"] = {**entry.options, conf_pools: [pool]}
-            else:
-                updates["data"] = {**entry.data, conf_pools: [pool]}
-
-    hass.config_entries.async_update_entry(entry, **updates)
 
 
 def _fire_record_created(hass: HomeAssistant, record: dict[str, Any]) -> None:

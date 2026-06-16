@@ -6,6 +6,8 @@ import pytest
 
 pytest.importorskip("homeassistant")
 
+from homeassistant.exceptions import ServiceValidationError  # noqa: E402
+from homeassistant.helpers import device_registry as dr  # noqa: E402
 from pytest_homeassistant_custom_component.common import MockConfigEntry  # noqa: E402
 
 from custom_components.pool_tracker.const import (  # noqa: E402
@@ -15,7 +17,6 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_POOL_VOLUME,
     CONF_POOL_VOLUME_UNIT,
     CONF_POOLS,
-    DEFAULT_ENTRY_TITLE,
     DOMAIN,
     SERVICE_LOG_WATER_TEST,
     WATER_TESTING_METHOD,
@@ -102,18 +103,61 @@ async def test_options_flow_opens_for_existing_pool(hass) -> None:
     assert result["step_id"] == "init"
 
 
-async def test_setup_normalizes_legacy_entry_title_to_pool_name(hass) -> None:
-    """Legacy single-pool titles become the virtual pool device name."""
-    entry = MockConfigEntry(
+async def test_multiple_config_entries_share_store_and_route_by_pool_id(hass) -> None:
+    """Multiple configured pools can log records without clobbering storage."""
+    rooftop = MockConfigEntry(
         domain=DOMAIN,
         title="Rooftop Pool",
-        unique_id=DOMAIN,
-        data={CONF_POOLS: [{CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"}]},
+        data={
+            CONF_POOLS: [
+                {CONF_POOL_ID: "rooftop_pool", CONF_POOL_NAME: "Rooftop Pool"}
+            ]
+        },
     )
-    entry.add_to_hass(hass)
+    spa = MockConfigEntry(
+        domain=DOMAIN,
+        title="Spa",
+        data={CONF_POOLS: [{CONF_POOL_ID: "spa", CONF_POOL_NAME: "Spa"}]},
+    )
+    rooftop.add_to_hass(hass)
+    spa.add_to_hass(hass)
 
-    assert await hass.config_entries.async_setup(entry.entry_id)
+    assert await hass.config_entries.async_setup(rooftop.entry_id)
     await hass.async_block_till_done()
 
-    assert entry.title == DEFAULT_ENTRY_TITLE
-    assert entry.runtime_data.pools == {"pool": "Rooftop Pool"}
+    assert rooftop.runtime_data.store is spa.runtime_data.store
+    device_registry = dr.async_get(hass)
+    rooftop_device = device_registry.async_get_device(
+        identifiers={(DOMAIN, "rooftop_pool")}
+    )
+    spa_device = device_registry.async_get_device(identifiers={(DOMAIN, "spa")})
+    assert rooftop_device is not None
+    assert rooftop_device.name == "Rooftop Pool"
+    assert spa_device is not None
+    assert spa_device.name == "Spa"
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_WATER_TEST,
+        {"pool_id": "rooftop_pool", "ph": 7.2},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_WATER_TEST,
+        {"pool_id": "spa", "ph": 7.6},
+        blocking=True,
+    )
+
+    assert rooftop.runtime_data.store.records("rooftop_pool")[0]["readings"]["ph"][
+        "value"
+    ] == 7.2
+    assert spa.runtime_data.store.records("spa")[0]["readings"]["ph"]["value"] == 7.6
+
+    with pytest.raises(ServiceValidationError, match="pool_id is required"):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_LOG_WATER_TEST,
+            {"ph": 7.4},
+            blocking=True,
+        )

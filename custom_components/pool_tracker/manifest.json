@@ -9,5 +9,5 @@
   "issue_tracker": "https://github.com/your-name/pool-tracker/issues",
   "requirements": [],
   "version": "0.1.0",
-  "integration_type": "service"
+  "integration_type": "device"
 }

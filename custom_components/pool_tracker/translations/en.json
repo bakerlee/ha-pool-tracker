@@ -3,7 +3,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Pool Tracker",
+        "title": "Add pool",
         "description": "Create a local manual pool maintenance log.",
         "data": {
           "name": "Pool name",
