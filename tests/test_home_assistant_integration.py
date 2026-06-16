@@ -242,6 +242,44 @@ async def test_prediction_sensor_applies_logged_chlorine_addition(hass) -> None:
     assert state.attributes["model_inputs"]["chemical_additions"]
 
 
+async def test_prediction_sensor_applies_chlorine_addition_without_prior_reading(
+    hass,
+) -> None:
+    """Free chlorine prediction can start from chemical additions alone."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Spa",
+        unique_id="spa",
+        data={
+            CONF_POOL_ID: "spa",
+            CONF_POOL_NAME: "Spa",
+            CONF_POOL_VOLUME: 400,
+            CONF_POOL_VOLUME_UNIT: "gal",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_CHEMICAL_ADDITION,
+        {"chemical": "dichlor", "amount": 1, "unit": "Tbsp"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    state = _sensor_state(hass, "free_chlorine_prediction")
+    assert state is not None
+    assert float(state.state) > 0
+    assert state.attributes["actuals"] == []
+    assert (
+        state.attributes["model_inputs"]["baseline"]
+        == "assumed_zero_no_free_chlorine_reading"
+    )
+
+
 def _sensor_state(hass, suffix: str):
     for state in hass.states.async_all("sensor"):
         if state.entity_id.endswith(suffix):

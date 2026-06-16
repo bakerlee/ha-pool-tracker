@@ -263,6 +263,60 @@ def test_free_chlorine_prediction_applies_dichlor_addition() -> None:
     assert prediction.model_inputs["pool_volume_source"] == "configured_gallons"
 
 
+def test_free_chlorine_prediction_uses_addition_without_prior_reading() -> None:
+    """Chemical-only free chlorine history predicts from an explicit baseline."""
+    addition_time = datetime(2026, 6, 10, 12, tzinfo=UTC)
+    prediction = build_prediction(
+        [
+            build_chemical_addition_record(
+                pool_id="pool",
+                chemical="dichlor",
+                amount=1,
+                unit="Tbsp",
+                event_timestamp=addition_time,
+                record_id="dichlor-dose",
+            )
+        ],
+        WATER_READING_FREE_CHLORINE,
+        now=addition_time + timedelta(hours=12),
+        pool_profile={CONF_POOL_VOLUME: 400, CONF_POOL_VOLUME_UNIT: "gal"},
+    )
+
+    assert prediction is not None
+    assert prediction.value > 0
+    assert prediction.actuals == []
+    assert prediction.last_actual_value is None
+    assert prediction.last_actual_timestamp is None
+    assert (
+        prediction.model_inputs["baseline"] == "assumed_zero_no_free_chlorine_reading"
+    )
+    assert prediction.model_inputs["chemical_additions"][0]["record_id"] == (
+        "dichlor-dose"
+    )
+
+
+def test_non_chlorine_prediction_still_requires_actual_reading() -> None:
+    """Chemical additions do not invent pH, alkalinity, or CYA readings."""
+    addition_time = datetime(2026, 6, 10, 12, tzinfo=UTC)
+
+    assert (
+        build_prediction(
+            [
+                build_chemical_addition_record(
+                    pool_id="pool",
+                    chemical="dichlor",
+                    amount=1,
+                    unit="Tbsp",
+                    event_timestamp=addition_time,
+                )
+            ],
+            WATER_READING_PH,
+            now=addition_time + timedelta(hours=12),
+        )
+        is None
+    )
+
+
 def test_later_actual_reading_overrides_prior_chemical_addition() -> None:
     """A later water test remains the exact anchor after additions."""
     start = datetime(2026, 6, 10, 12, tzinfo=UTC)
