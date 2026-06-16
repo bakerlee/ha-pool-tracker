@@ -2,16 +2,46 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+
+import homeassistant.helpers.config_validation as cv
+import voluptuous as vol
+from homeassistant.core import SupportsResponse
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+
+from .const import (
+    CONF_DEFAULT_TESTING_METHOD,
+    CONF_POOL_ID,
+    CONF_POOL_NAME,
+    CONF_POOLS,
+    DEFAULT_POOL_ID,
+    DEFAULT_POOL_NAME,
+    DEFAULT_TESTING_METHOD,
+    DOMAIN,
+    EVENT_RECORD_CREATED,
+    PLATFORMS,
+    SERVICE_LOG_CHEMICAL_ADDITION,
+    SERVICE_LOG_WATER_TEST,
+    WATER_READING_CYA,
+    WATER_READING_FREE_CHLORINE,
+    WATER_READING_PH,
+    WATER_READING_TOTAL_ALKALINITY,
+    WATER_READING_WATER_CLARITY,
+    WATER_TESTING_METHOD,
+    WATER_TESTING_METHODS,
+)
+from .models import build_chemical_addition_record, build_water_test_record
+from .store import PoolTrackerStore, create_home_assistant_store
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant, ServiceCall
 
-    from .store import PoolTrackerStore
-
     type PoolTrackerConfigEntry = ConfigEntry[PoolTrackerRuntime]
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -24,8 +54,6 @@ class PoolTrackerRuntime:
 
 
 def _number(minimum: float | None = None, maximum: float | None = None):
-    import voluptuous as vol
-
     validators = [vol.Coerce(float)]
     if minimum is not None:
         validators.append(vol.Range(min=minimum))
@@ -35,8 +63,6 @@ def _number(minimum: float | None = None, maximum: float | None = None):
 
 
 def _positive_number(value: Any) -> float:
-    import voluptuous as vol
-
     number = vol.Coerce(float)(value)
     if number <= 0:
         raise vol.Invalid("value must be greater than zero")
@@ -44,16 +70,6 @@ def _positive_number(value: Any) -> float:
 
 
 def _validate_water_test_content(data: dict[str, Any]) -> dict[str, Any]:
-    import voluptuous as vol
-
-    from .const import (
-        WATER_READING_CYA,
-        WATER_READING_FREE_CHLORINE,
-        WATER_READING_PH,
-        WATER_READING_TOTAL_ALKALINITY,
-        WATER_READING_WATER_CLARITY,
-    )
-
     if any(
         data.get(key) not in (None, "")
         for key in (
@@ -72,20 +88,6 @@ def _validate_water_test_content(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _water_test_service_schema():
-    import homeassistant.helpers.config_validation as cv
-    import voluptuous as vol
-
-    from .const import (
-        CONF_POOL_ID,
-        WATER_READING_CYA,
-        WATER_READING_FREE_CHLORINE,
-        WATER_READING_PH,
-        WATER_READING_TOTAL_ALKALINITY,
-        WATER_READING_WATER_CLARITY,
-        WATER_TESTING_METHOD,
-        WATER_TESTING_METHODS,
-    )
-
     return vol.Schema(
         vol.All(
             {
@@ -106,11 +108,6 @@ def _water_test_service_schema():
 
 
 def _chemical_addition_service_schema():
-    import homeassistant.helpers.config_validation as cv
-    import voluptuous as vol
-
-    from .const import CONF_POOL_ID
-
     return vol.Schema(
         {
             vol.Optional(CONF_POOL_ID): cv.string,
@@ -126,27 +123,9 @@ def _chemical_addition_service_schema():
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Set up Pool Tracker service actions."""
-    from homeassistant.core import SupportsResponse
-
-    from .const import (
-        CONF_DEFAULT_TESTING_METHOD,
-        CONF_POOL_ID,
-        DOMAIN,
-        SERVICE_LOG_CHEMICAL_ADDITION,
-        SERVICE_LOG_WATER_TEST,
-        WATER_READING_CYA,
-        WATER_READING_FREE_CHLORINE,
-        WATER_READING_PH,
-        WATER_READING_TOTAL_ALKALINITY,
-        WATER_READING_WATER_CLARITY,
-        WATER_TESTING_METHOD,
-    )
-    from .models import build_chemical_addition_record, build_water_test_record
-    from .store import PoolTrackerStore, create_home_assistant_store
-
     event_store = PoolTrackerStore(create_home_assistant_store(hass))
     await event_store.async_load()
-    hass.data[DOMAIN] = {"entries": {}, "store": event_store}
+    hass.data.setdefault(DOMAIN, {})["store"] = event_store
 
     async def handle_log_water_test(call: ServiceCall) -> dict[str, str]:
         runtime, pool_id = _runtime_for_call(hass, call.data.get(CONF_POOL_ID))
@@ -208,13 +187,6 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: PoolTrackerConfigEntry) -> bool:
     """Set up Pool Tracker from a config entry."""
-    from .const import (
-        CONF_POOL_NAME,
-        DEFAULT_POOL_NAME,
-        DOMAIN,
-        PLATFORMS,
-    )
-
     pool_profiles = _pool_profiles_from_entry(entry)
     pools = {
         pool_id: profile.get(CONF_POOL_NAME, DEFAULT_POOL_NAME)
@@ -225,8 +197,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: PoolTrackerConfigEntry) 
     entry.runtime_data = PoolTrackerRuntime(
         store=store, pools=pools, pool_profiles=pool_profiles
     )
-    hass.data[DOMAIN]["entries"][entry.entry_id] = entry
 
+    _LOGGER.debug(
+        "Setting up Pool Tracker entry %s for pools %s", entry.entry_id, pools
+    )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
@@ -235,11 +209,9 @@ async def async_unload_entry(
     hass: HomeAssistant, entry: PoolTrackerConfigEntry
 ) -> bool:
     """Unload a Pool Tracker config entry."""
-    from .const import DOMAIN, PLATFORMS
-
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN]["entries"].pop(entry.entry_id, None)
+        _LOGGER.debug("Unloaded Pool Tracker entry %s", entry.entry_id)
     return unload_ok
 
 
@@ -247,24 +219,21 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     """Migrate old config entry versions."""
     if config_entry.version == 1:
         return True
+    _LOGGER.error(
+        "Unsupported Pool Tracker config entry version %s", config_entry.version
+    )
     return False
 
 
 def _runtime_for_call(
     hass: HomeAssistant, requested_pool_id: str | None
 ) -> tuple[PoolTrackerRuntime, str]:
-    from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-
-    from .const import DOMAIN
-
-    entries: dict[str, PoolTrackerConfigEntry] = hass.data.get(DOMAIN, {}).get(
-        "entries", {}
-    )
+    entries = hass.config_entries.async_loaded_entries(DOMAIN)
     if not entries:
         raise HomeAssistantError("Pool Tracker is not loaded.")
 
     matches: list[tuple[PoolTrackerRuntime, str]] = []
-    for entry in entries.values():
+    for entry in entries:
         runtime = entry.runtime_data
         for pool_id in runtime.pools:
             if requested_pool_id is None or requested_pool_id == pool_id:
@@ -285,33 +254,27 @@ def _runtime_for_call(
 def _pool_profiles_from_entry(
     entry: PoolTrackerConfigEntry,
 ) -> dict[str, dict[str, Any]]:
-    from .const import (
-        CONF_DEFAULT_TESTING_METHOD,
-        CONF_POOL_ID,
-        CONF_POOL_NAME,
-        CONF_POOLS,
-        DEFAULT_POOL_ID,
-        DEFAULT_POOL_NAME,
-        DEFAULT_TESTING_METHOD,
+    pool = _pool_profile_from_mapping(entry.options) or _pool_profile_from_mapping(
+        entry.data
     )
+    if pool is None:
+        pool = {CONF_POOL_ID: DEFAULT_POOL_ID, CONF_POOL_NAME: DEFAULT_POOL_NAME}
 
-    raw_pools = entry.options.get(CONF_POOLS) or entry.data.get(CONF_POOLS, [])
-    if not raw_pools:
-        raw_pools = [{CONF_POOL_ID: DEFAULT_POOL_ID, CONF_POOL_NAME: DEFAULT_POOL_NAME}]
+    pool_id = pool.setdefault(CONF_POOL_ID, DEFAULT_POOL_ID)
+    pool.setdefault(CONF_POOL_NAME, DEFAULT_POOL_NAME)
+    pool.setdefault(CONF_DEFAULT_TESTING_METHOD, DEFAULT_TESTING_METHOD)
+    return {pool_id: pool}
 
-    profiles: dict[str, dict[str, Any]] = {}
-    for raw_pool in raw_pools:
-        pool = dict(raw_pool)
-        pool_id = pool.setdefault(CONF_POOL_ID, DEFAULT_POOL_ID)
-        pool.setdefault(CONF_POOL_NAME, DEFAULT_POOL_NAME)
-        pool.setdefault(CONF_DEFAULT_TESTING_METHOD, DEFAULT_TESTING_METHOD)
-        profiles[pool_id] = pool
-    return profiles
+
+def _pool_profile_from_mapping(mapping: dict[str, Any]) -> dict[str, Any] | None:
+    if legacy_pools := mapping.get(CONF_POOLS):
+        return dict(legacy_pools[0])
+    if mapping.get(CONF_POOL_ID) or mapping.get(CONF_POOL_NAME):
+        return dict(mapping)
+    return None
 
 
 def _fire_record_created(hass: HomeAssistant, record: dict[str, Any]) -> None:
-    from .const import EVENT_RECORD_CREATED
-
     hass.bus.async_fire(
         EVENT_RECORD_CREATED,
         {

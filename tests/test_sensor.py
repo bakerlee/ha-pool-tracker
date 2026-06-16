@@ -6,7 +6,11 @@ import pytest
 
 pytest.importorskip("homeassistant")
 
-from custom_components.pool_tracker.sensor import SENSOR_DESCRIPTIONS  # noqa: E402
+from custom_components.pool_tracker.sensor import (  # noqa: E402
+    PARALLEL_UPDATES,
+    SENSOR_DESCRIPTIONS,
+    PoolTrackerSensor,
+)
 
 
 def test_sensor_descriptions_use_clean_entity_keys() -> None:
@@ -26,3 +30,16 @@ def test_sensor_descriptions_use_clean_entity_keys() -> None:
     assert [
         description.translation_key for description in SENSOR_DESCRIPTIONS
     ] == expected_keys
+
+
+def test_sensor_descriptions_follow_push_text_semantics() -> None:
+    """Push sensors should not poll, and clarity remains free-form text."""
+    clarity = next(
+        description
+        for description in SENSOR_DESCRIPTIONS
+        if description.key == "water_clarity"
+    )
+
+    assert clarity.device_class is None
+    assert PoolTrackerSensor.__dict__["__attr_should_poll"] is False
+    assert PARALLEL_UPDATES == 0

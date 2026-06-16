@@ -13,6 +13,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry  # noqa
 from custom_components.pool_tracker.config_flow import (  # noqa: E402
     _pool_profile_schema,
     build_pool_config,
+    pool_config_from_entry,
 )
 from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_DEFAULT_TESTING_METHOD,
@@ -69,6 +70,20 @@ def test_pool_profile_schema_serializes_for_home_assistant_forms() -> None:
     ]
 
 
+def test_pool_config_from_entry_accepts_legacy_pool_list() -> None:
+    """Existing entries with the old length-1 pool list continue to load."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Legacy Pool",
+        data={CONF_POOLS: [{CONF_POOL_ID: "legacy", CONF_POOL_NAME: "Legacy Pool"}]},
+    )
+
+    assert pool_config_from_entry(entry) == {
+        CONF_POOL_ID: "legacy",
+        CONF_POOL_NAME: "Legacy Pool",
+    }
+
+
 async def test_config_flow_uses_pool_name_for_entry(hass) -> None:
     """Each Pool Tracker config entry represents one pool."""
     result = await hass.config_entries.flow.async_init(
@@ -79,8 +94,9 @@ async def test_config_flow_uses_pool_name_for_entry(hass) -> None:
 
     assert result["type"] == "create_entry"
     assert result["title"] == "Rooftop Pool"
-    assert result["data"][CONF_POOLS][0][CONF_POOL_ID] == "rooftop_pool"
-    assert result["data"][CONF_POOLS][0][CONF_POOL_NAME] == "Rooftop Pool"
+    assert result["result"].unique_id == "rooftop_pool"
+    assert result["data"][CONF_POOL_ID] == "rooftop_pool"
+    assert result["data"][CONF_POOL_NAME] == "Rooftop Pool"
 
 
 async def test_config_flow_allows_multiple_pools(hass) -> None:
@@ -88,11 +104,8 @@ async def test_config_flow_allows_multiple_pools(hass) -> None:
     existing = MockConfigEntry(
         domain=DOMAIN,
         title="Rooftop Pool",
-        data={
-            CONF_POOLS: [
-                {CONF_POOL_ID: "rooftop_pool", CONF_POOL_NAME: "Rooftop Pool"}
-            ]
-        },
+        unique_id="rooftop_pool",
+        data={CONF_POOL_ID: "rooftop_pool", CONF_POOL_NAME: "Rooftop Pool"},
     )
     existing.add_to_hass(hass)
 
@@ -104,4 +117,5 @@ async def test_config_flow_allows_multiple_pools(hass) -> None:
 
     assert result["type"] == "create_entry"
     assert result["title"] == "Rooftop Pool"
-    assert result["data"][CONF_POOLS][0][CONF_POOL_ID] == "rooftop_pool_2"
+    assert result["result"].unique_id == "rooftop_pool_2"
+    assert result["data"][CONF_POOL_ID] == "rooftop_pool_2"

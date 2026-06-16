@@ -139,11 +139,11 @@ def build_pool_config(
 
 def pool_config_from_entry(config_entry: config_entries.ConfigEntry) -> dict[str, Any]:
     """Return the active single-pool config for an entry."""
-    pools = config_entry.options.get(CONF_POOLS) or config_entry.data.get(
-        CONF_POOLS, []
-    )
-    if pools:
-        return pools[0]
+    for mapping in (config_entry.options, config_entry.data):
+        if legacy_pools := mapping.get(CONF_POOLS):
+            return legacy_pools[0]
+        if mapping.get(CONF_POOL_ID) or mapping.get(CONF_POOL_NAME):
+            return dict(mapping)
     return {CONF_POOL_ID: DEFAULT_POOL_ID, CONF_POOL_NAME: DEFAULT_POOL_NAME}
 
 
@@ -168,9 +168,11 @@ class PoolTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input,
                 pool_id=_unique_pool_id(self.hass, user_input[CONF_POOL_NAME]),
             )
+            await self.async_set_unique_id(pool[CONF_POOL_ID])
+            self._abort_if_unique_id_configured()
             return self.async_create_entry(
                 title=pool[CONF_POOL_NAME],
-                data={CONF_POOLS: [pool]},
+                data=pool,
             )
 
         return self.async_show_form(
@@ -194,7 +196,7 @@ class PoolTrackerOptionsFlow(config_entries.OptionsFlowWithReload):
             self.hass.config_entries.async_update_entry(
                 self.config_entry, title=pool[CONF_POOL_NAME]
             )
-            return self.async_create_entry(title="", data={CONF_POOLS: [pool]})
+            return self.async_create_entry(title="", data=pool)
 
         return self.async_show_form(
             step_id="init",

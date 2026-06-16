@@ -6,9 +6,10 @@ from collections.abc import Callable
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Protocol
 
+from homeassistant.helpers.storage import Store
+
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
-    from homeassistant.helpers.storage import Store
 
 from .const import CONF_POOL_ID, DEFAULT_POOL_ID, DOMAIN
 from .models import PoolRecord, StorageData, latest_reading, latest_record
@@ -119,8 +120,6 @@ class PoolTrackerStore:
 
 def create_home_assistant_store(hass: HomeAssistant) -> Store[StorageData]:
     """Create the Home Assistant storage backend."""
-    from homeassistant.helpers.storage import Store
-
     return Store(hass, STORAGE_VERSION, STORAGE_KEY)
 
 

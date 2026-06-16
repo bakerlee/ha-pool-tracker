@@ -16,7 +16,6 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_POOL_NAME,
     CONF_POOL_VOLUME,
     CONF_POOL_VOLUME_UNIT,
-    CONF_POOLS,
     DOMAIN,
     SERVICE_LOG_WATER_TEST,
     WATER_TESTING_METHOD,
@@ -30,15 +29,11 @@ async def test_setup_unload_reload_config_entry(hass) -> None:
         title="Pool",
         unique_id=DOMAIN,
         data={
-            CONF_POOLS: [
-                {
-                    CONF_POOL_ID: "pool",
-                    CONF_POOL_NAME: "Pool",
-                    CONF_POOL_VOLUME: 12000.0,
-                    CONF_POOL_VOLUME_UNIT: "gal",
-                    CONF_DEFAULT_TESTING_METHOD: "strips",
-                }
-            ]
+            CONF_POOL_ID: "pool",
+            CONF_POOL_NAME: "Pool",
+            CONF_POOL_VOLUME: 12000.0,
+            CONF_POOL_VOLUME_UNIT: "gal",
+            CONF_DEFAULT_TESTING_METHOD: "strips",
         },
     )
     entry.add_to_hass(hass)
@@ -74,7 +69,7 @@ async def test_setup_defaults_missing_pool_profile_fields(hass) -> None:
         domain=DOMAIN,
         title="Pool",
         unique_id=DOMAIN,
-        data={CONF_POOLS: [{CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"}]},
+        data={CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"},
     )
     entry.add_to_hass(hass)
 
@@ -93,7 +88,7 @@ async def test_options_flow_opens_for_existing_pool(hass) -> None:
         domain=DOMAIN,
         title="Pool",
         unique_id=DOMAIN,
-        data={CONF_POOLS: [{CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"}]},
+        data={CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"},
     )
     entry.add_to_hass(hass)
 
@@ -108,16 +103,14 @@ async def test_multiple_config_entries_share_store_and_route_by_pool_id(hass) ->
     rooftop = MockConfigEntry(
         domain=DOMAIN,
         title="Rooftop Pool",
-        data={
-            CONF_POOLS: [
-                {CONF_POOL_ID: "rooftop_pool", CONF_POOL_NAME: "Rooftop Pool"}
-            ]
-        },
+        unique_id="rooftop_pool",
+        data={CONF_POOL_ID: "rooftop_pool", CONF_POOL_NAME: "Rooftop Pool"},
     )
     spa = MockConfigEntry(
         domain=DOMAIN,
         title="Spa",
-        data={CONF_POOLS: [{CONF_POOL_ID: "spa", CONF_POOL_NAME: "Spa"}]},
+        unique_id="spa",
+        data={CONF_POOL_ID: "spa", CONF_POOL_NAME: "Spa"},
     )
     rooftop.add_to_hass(hass)
     spa.add_to_hass(hass)
@@ -149,9 +142,10 @@ async def test_multiple_config_entries_share_store_and_route_by_pool_id(hass) ->
         blocking=True,
     )
 
-    assert rooftop.runtime_data.store.records("rooftop_pool")[0]["readings"]["ph"][
-        "value"
-    ] == 7.2
+    assert (
+        rooftop.runtime_data.store.records("rooftop_pool")[0]["readings"]["ph"]["value"]
+        == 7.2
+    )
     assert spa.runtime_data.store.records("spa")[0]["readings"]["ph"]["value"] == 7.6
 
     with pytest.raises(ServiceValidationError, match="pool_id is required"):

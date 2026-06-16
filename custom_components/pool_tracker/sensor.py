@@ -30,6 +30,8 @@ from .const import (
 )
 from .models import PoolRecord, chemical_summary, parse_utc
 
+PARALLEL_UPDATES = 0
+
 
 @dataclass(frozen=True, kw_only=True)
 class PoolSensorDescription(SensorEntityDescription):
@@ -157,7 +159,6 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
     PoolSensorDescription(
         key="water_clarity",
         translation_key="water_clarity",
-        device_class=SensorDeviceClass.ENUM,
         value_fn=lambda entity: _latest_reading_value(
             entity, WATER_READING_WATER_CLARITY
         ),
@@ -197,6 +198,7 @@ class PoolTrackerSensor(SensorEntity):
 
     entity_description: PoolSensorDescription
     _attr_has_entity_name = True
+    _attr_should_poll = False
 
     def __init__(
         self,
