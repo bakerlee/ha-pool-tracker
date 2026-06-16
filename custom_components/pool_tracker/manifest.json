@@ -1,7 +1,7 @@
 {
   "domain": "pool_tracker",
   "name": "Pool Tracker",
-  "after_dependencies": [],
+  "after_dependencies": ["frontend", "panel_custom"],
   "codeowners": ["@bakerlee"],
   "config_flow": true,
   "documentation": "https://github.com/bakerlee/ha-pool-tracker",

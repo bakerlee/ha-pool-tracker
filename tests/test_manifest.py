@@ -17,4 +17,5 @@ def test_manifest_uses_real_project_metadata() -> None:
     assert manifest["issue_tracker"] == (
         "https://github.com/bakerlee/ha-pool-tracker/issues"
     )
+    assert manifest["after_dependencies"] == ["frontend", "panel_custom"]
     assert manifest["quality_scale"] == "bronze"

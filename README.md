@@ -97,83 +97,24 @@ Weather context uses the configured weather entity's current attributes, and for
 
 For chemical additions, Pool Tracker uses configured volume when available. If volume is missing, it falls back to a rough default by pool type and reports the volume source in `model_inputs`. This is still an estimate, not a dosing recommendation.
 
-Example ApexCharts dashboard card for one all-in graph:
+## Prepackaged UI
+
+Pool Tracker includes a bundled frontend module at `/pool_tracker_static/pool-tracker-frontend.js`.
+
+When Home Assistant frontend support is available, the integration registers a `Pool Tracker` sidebar panel automatically. The panel discovers Pool Tracker prediction sensors and shows the predicted value line, uncertainty bounds, actual water tests, and chemical additions without hand-written Lovelace YAML or a third-party chart card.
+
+The same module also registers a Lovelace custom card for existing dashboards:
 
 ```yaml
-type: custom:apexcharts-card
-graph_span: 5d
-span:
-  start: day
-  offset: -2d
-now:
-  show: true
-header:
-  show: true
-  title: Free chlorine
-  show_states: true
-apex_config:
-  chart:
-    height: 320px
-  markers:
-    size: [0, 0, 0, 5, 6]
-  stroke:
-    width: [1, 1, 3, 0, 0]
-    dashArray: [4, 4, 0, 0, 0]
-  tooltip:
-    shared: false
-yaxis:
-  - min: 0
-    decimals: 2
-series:
-  - entity: sensor.pool_free_chlorine_predicted
-    name: Lower bound
-    color: "#9aa0a6"
-    show:
-      in_header: false
-    data_generator: |
-      return entity.attributes.series.map((point) => [
-        new Date(point.timestamp).getTime(),
-        point.lower_bound,
-      ]);
-  - entity: sensor.pool_free_chlorine_predicted
-    name: Upper bound
-    color: "#9aa0a6"
-    show:
-      in_header: false
-    data_generator: |
-      return entity.attributes.series.map((point) => [
-        new Date(point.timestamp).getTime(),
-        point.upper_bound,
-      ]);
-  - entity: sensor.pool_free_chlorine_predicted
-    name: Prediction
-    color: "#1a73e8"
-    data_generator: |
-      return entity.attributes.series.map((point) => [
-        new Date(point.timestamp).getTime(),
-        point.value,
-      ]);
-  - entity: sensor.pool_free_chlorine_predicted
-    name: Tests
-    color: "#188038"
-    data_generator: |
-      return entity.attributes.actuals.map((point) => [
-        new Date(point.timestamp).getTime(),
-        point.value,
-      ]);
-  - entity: sensor.pool_free_chlorine_predicted
-    name: Chemicals
-    color: "#fa7b17"
-    data_generator: |
-      return entity.attributes.chemical_additions
-        .filter((point) => point.value !== undefined)
-        .map((point) => [
-          new Date(point.timestamp).getTime(),
-          point.value,
-        ]);
+type: custom:pool-tracker-graph-card
 ```
 
-Use the matching prediction entity for the reading you want to inspect, such as `sensor.pool_ph_predicted`, `sensor.pool_total_alkalinity_predicted`, or `sensor.pool_cya_predicted`.
+By default, the card discovers all Pool Tracker prediction sensors and lets the user switch between readings. To pin one reading, set `entity`:
+
+```yaml
+type: custom:pool-tracker-graph-card
+entity: sensor.pool_free_chlorine_predicted
+```
 
 ## Service Actions
 
@@ -257,9 +198,9 @@ data:
   source: agent
 ```
 
-## Temporary Dashboard UI
+## Temporary Dashboard Actions
 
-The preferred long-term UI is an integration-managed frontend surface or custom panel. V1 is backend-first, so use Home Assistant service/action cards as a temporary UI.
+The graph UI is bundled with the integration. V1 data entry is still backend-first, so use Home Assistant service/action cards as temporary manual controls.
 
 Example Lovelace manual water-test action:
 
@@ -324,6 +265,6 @@ ruff format .
 ## Known Limitations
 
 - V1 supports multiple configured pools, with one Pool Tracker device per pool.
-- The backend and service actions are implemented first; a full custom panel is not included yet.
+- The bundled frontend is display-only; data entry still uses service actions.
 - There is no chemistry guidance, dosing advice, equipment control, or verification that a logged action physically happened.
 - Usage context is deferred. It is unclear whether this should be a boolean in-use/not-in-use signal, an event such as "used for 3 hours", or a more flexible proxied value. Future design should make it helpful without forcing one brittle interpretation.

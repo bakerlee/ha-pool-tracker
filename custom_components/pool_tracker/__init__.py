@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
+from homeassistant.components import frontend, panel_custom
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
@@ -43,6 +46,9 @@ if TYPE_CHECKING:
     type PoolTrackerConfigEntry = ConfigEntry[PoolTrackerRuntime]
 
 _LOGGER = logging.getLogger(__name__)
+FRONTEND_URL_BASE = f"/{DOMAIN}_static"
+FRONTEND_MODULE_URL = f"{FRONTEND_URL_BASE}/pool-tracker-frontend.js"
+FRONTEND_PANEL_URL_PATH = DOMAIN
 
 
 @dataclass
@@ -129,6 +135,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     event_store = PoolTrackerStore(create_home_assistant_store(hass))
     await event_store.async_load()
     hass.data.setdefault(DOMAIN, {})["store"] = event_store
+    await _async_setup_frontend(hass)
 
     async def handle_log_water_test(call: ServiceCall) -> dict[str, str]:
         runtime, pool_id = _runtime_for_call(hass, call.data.get(CONF_POOL_ID))
@@ -186,6 +193,40 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     )
 
     return True
+
+
+async def _async_setup_frontend(hass: HomeAssistant) -> None:
+    """Register bundled Pool Tracker frontend assets when HTTP is available."""
+    http = getattr(hass, "http", None)
+    if http is None:
+        return
+
+    await http.async_register_static_paths(
+        [
+            StaticPathConfig(
+                FRONTEND_URL_BASE,
+                str(Path(__file__).parent / "frontend"),
+                cache_headers=True,
+            )
+        ]
+    )
+
+    if frontend.DATA_EXTRA_MODULE_URL in hass.data:
+        frontend.add_extra_js_url(hass, FRONTEND_MODULE_URL)
+
+    if frontend.async_panel_exists(hass, FRONTEND_PANEL_URL_PATH):
+        return
+
+    await panel_custom.async_register_panel(
+        hass,
+        frontend_url_path=FRONTEND_PANEL_URL_PATH,
+        webcomponent_name="pool-tracker-panel",
+        sidebar_title="Pool Tracker",
+        sidebar_icon="mdi:pool",
+        module_url=FRONTEND_MODULE_URL,
+        config={"cardType": "pool-tracker-graph-card"},
+        config_panel_domain=DOMAIN,
+    )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: PoolTrackerConfigEntry) -> bool:
