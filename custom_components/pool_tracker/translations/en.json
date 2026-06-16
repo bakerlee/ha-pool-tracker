@@ -123,13 +123,7 @@
     },
     "get_prediction": {
       "name": "Get prediction",
-      "description": "Return the full prediction series, actuals, and model inputs for a prediction sensor.",
-      "fields": {
-        "entity_id": {
-          "name": "Prediction sensor",
-          "description": "The prediction sensor to return the full series for."
-        }
-      }
+      "description": "Return the full prediction series, actuals, and model inputs for a prediction sensor."
     }
   },
   "entity": {

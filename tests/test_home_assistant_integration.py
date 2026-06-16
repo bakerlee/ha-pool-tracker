@@ -208,7 +208,7 @@ async def test_prediction_sensor_updates_after_water_test_and_context_change(
     await hass.services.async_call(
         DOMAIN,
         SERVICE_LOG_WATER_TEST,
-        {"free_chlorine": 3.0},
+        {"free_chlorine": 3.0, "ph": 7.4},
         blocking=True,
     )
     await hass.async_block_till_done()
@@ -225,6 +225,20 @@ async def test_prediction_sensor_updates_after_water_test_and_context_change(
     assert prediction["series"] == state.attributes["series"]
     assert prediction["actuals"] == state.attributes["actuals"]
     assert prediction["chemical_additions"] == state.attributes["chemical_additions"]
+
+    ph_state = _sensor_state(hass, "ph_predicted")
+    assert ph_state is not None
+    response = await _get_prediction_response(
+        hass, [state.entity_id, ph_state.entity_id]
+    )
+    assert set(response) == {state.entity_id, ph_state.entity_id}
+    assert (
+        response[state.entity_id]["prediction"]["series"] == state.attributes["series"]
+    )
+    assert (
+        response[ph_state.entity_id]["prediction"]["series"]
+        == ph_state.attributes["series"]
+    )
 
     hass.states.async_set("weather.home", "sunny", {"uv_index": 10})
     await hass.async_block_till_done()
@@ -422,6 +436,13 @@ async def test_chemical_addition_event_entity_fires(hass) -> None:
 
 
 async def _get_prediction(hass, entity_id: str) -> dict[str, Any]:
+    response = await _get_prediction_response(hass, entity_id)
+    return response[entity_id]["prediction"]
+
+
+async def _get_prediction_response(
+    hass, entity_id: str | list[str]
+) -> dict[str, dict[str, Any]]:
     response = await hass.services.async_call(
         DOMAIN,
         SERVICE_GET_PREDICTION,
@@ -429,7 +450,7 @@ async def _get_prediction(hass, entity_id: str) -> dict[str, Any]:
         blocking=True,
         return_response=True,
     )
-    return response[entity_id]["prediction"]
+    return response
 
 
 def _sensor_state(hass, suffix: str):

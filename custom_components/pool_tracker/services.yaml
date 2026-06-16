@@ -122,11 +122,3 @@ get_prediction:
     entity:
       integration: pool_tracker
       domain: sensor
-  fields:
-    entity_id:
-      required: true
-      example: sensor.pool_free_chlorine_predicted
-      selector:
-        entity:
-          integration: pool_tracker
-          domain: sensor
