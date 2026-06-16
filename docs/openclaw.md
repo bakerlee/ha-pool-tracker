@@ -35,6 +35,10 @@ Supported fields:
 
 At least one reading, clarity value, or note is required.
 
+When backfilling, pass `event_timestamp` for when the test happened. Pool Tracker
+will store that historical time, even though Home Assistant's event entity and
+Logbook surfaces record the service call at the time it is processed.
+
 ## Chemical Addition
 
 Use `pool_tracker.log_chemical_addition` for human-entered additions.
@@ -70,6 +74,8 @@ Every successful append fires `pool_tracker_record_created`:
 record_id: "..."
 pool_id: pool
 type: water_test
+event_timestamp: "2026-06-15T00:30:00+00:00"
+created_timestamp: "2026-06-16T14:00:00+00:00"
 ```
 
 ## Safety Boundary

@@ -284,7 +284,7 @@ class PoolTrackerSensor(SensorEntity):
             )
 
     @callback
-    def _handle_store_update(self) -> None:
+    def _handle_store_update(self, record: PoolRecord) -> None:
         self._prediction_cache.clear()
         self.async_write_ha_state()
 

@@ -268,5 +268,7 @@ def _fire_record_created(hass: HomeAssistant, record: dict[str, Any]) -> None:
             "record_id": record["id"],
             "pool_id": record["pool_id"],
             "type": record["type"],
+            "event_timestamp": record["event_timestamp"],
+            "created_timestamp": record["created_timestamp"],
         },
     )

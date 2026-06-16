@@ -28,7 +28,7 @@ class StoreBackend(Protocol):
         """Save storage data."""
 
 
-Listener = Callable[[], None]
+Listener = Callable[[PoolRecord], None]
 
 
 class PoolTrackerStore:
@@ -74,7 +74,7 @@ class PoolTrackerStore:
         pool = self._pool(stored[CONF_POOL_ID])
         pool["records"].append(stored)
         await self._backend.async_save(self.data)
-        self._notify_listeners()
+        self._notify_listeners(stored)
         return stored
 
     def async_listen(self, listener: Listener) -> Callable[[], None]:
@@ -92,9 +92,9 @@ class PoolTrackerStore:
         pool.setdefault("records", [])
         return pool
 
-    def _notify_listeners(self) -> None:
+    def _notify_listeners(self, record: PoolRecord) -> None:
         for listener in list(self._listeners):
-            listener()
+            listener(record)
 
     def _migrate(self, loaded: StorageData | None) -> StorageData:
         if not loaded:

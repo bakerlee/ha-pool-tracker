@@ -18,7 +18,7 @@ from .const import (
     RECORD_TYPE_WATER_TEST,
     WATER_TESTING_METHOD,
 )
-from .models import chemical_summary
+from .models import PoolRecord, chemical_summary
 
 PARALLEL_UPDATES = 0
 
@@ -61,17 +61,18 @@ class PoolRecordEvent(EventEntity):
 
     async def async_added_to_hass(self) -> None:
         """Subscribe to the event log without replaying historical records."""
-        latest = self.store.latest_record(self._record_type, self.pool_id)
-        self._last_record_id = latest["id"] if latest else None
         self.async_on_remove(self.store.async_listen(self._handle_store_update))
 
     @callback
-    def _handle_store_update(self) -> None:
-        latest = self.store.latest_record(self._record_type, self.pool_id)
-        if latest is None or latest["id"] == self._last_record_id:
+    def _handle_store_update(self, record: PoolRecord) -> None:
+        if (
+            record.get("type") != self._record_type
+            or record.get("pool_id") != self.pool_id
+            or record["id"] == self._last_record_id
+        ):
             return
-        self._last_record_id = latest["id"]
-        self._trigger_event(self._event_type, self._event_attributes(latest))
+        self._last_record_id = record["id"]
+        self._trigger_event(self._event_type, self._event_attributes(record))
         self.async_write_ha_state()
 
     def _event_attributes(self, record: dict[str, Any]) -> dict[str, Any]:

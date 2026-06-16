@@ -342,6 +342,48 @@ async def test_water_test_event_entity_fires(hass) -> None:
     assert updated.attributes[WATER_TESTING_METHOD] == "strips"
 
 
+async def test_backfilled_water_test_event_entity_fires_for_appended_record(
+    hass,
+) -> None:
+    """Backfilled water tests trigger the event entity with their event time."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id="pool",
+        data={CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"},
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    event_state = next(
+        state
+        for state in hass.states.async_all("event")
+        if state.entity_id.endswith("water_test")
+    )
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_WATER_TEST,
+        {"event_timestamp": "2026-06-15T12:00:00-05:00", "ph": 7.8},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_WATER_TEST,
+        {"event_timestamp": "2026-06-14T19:30:00-05:00", "ph": 7.2},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    updated = hass.states.get(event_state.entity_id)
+    assert updated is not None
+    assert updated.attributes["event_type"] == "water_test"
+    assert updated.attributes["event_timestamp"] == "2026-06-15T00:30:00+00:00"
+    assert updated.attributes["readings"]["ph"] == {"value": 7.2, "unit": "pH"}
+
+
 async def test_chemical_addition_event_entity_fires(hass) -> None:
     """Logging a chemical addition triggers the pool's event entity."""
     entry = MockConfigEntry(

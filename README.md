@@ -158,6 +158,13 @@ data:
 
 Omitted readings are not copied from previous tests into the new record.
 
+Pool Tracker stores `event_timestamp` as the time the test happened and
+`created_timestamp` as the time Home Assistant logged it. Home Assistant event
+entities and Logbook entries are emitted when the service call is processed, so
+their displayed state/change time can still say "now" for a backfilled record.
+Use the Pool Tracker `event_timestamp` attribute for the actual historical test
+time.
+
 ### `pool_tracker.log_chemical_addition`
 
 Requires `chemical`, `amount`, and `unit`.
@@ -171,7 +178,7 @@ data:
   source: agent
 ```
 
-Both service actions return a `record_id` when called with Home Assistant service response support, and fire a `pool_tracker_record_created` event containing the record id, pool id, and record type.
+Both service actions return a `record_id` when called with Home Assistant service response support, and fire a `pool_tracker_record_created` event containing the record id, pool id, record type, event timestamp, and creation timestamp.
 
 ## OpenClaw Examples
 
