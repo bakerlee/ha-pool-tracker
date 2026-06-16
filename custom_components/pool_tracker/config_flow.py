@@ -10,6 +10,7 @@ from homeassistant.helpers import selector
 from homeassistant.util import slugify
 
 from .const import (
+    CONF_COVER_ENTITY_ID,
     CONF_DEFAULT_TESTING_METHOD,
     CONF_POOL_ID,
     CONF_POOL_NAME,
@@ -17,13 +18,20 @@ from .const import (
     CONF_POOL_VOLUME,
     CONF_POOL_VOLUME_UNIT,
     CONF_POOLS,
+    CONF_RAINFALL_ENTITY_ID,
     CONF_SANITIZER_TYPE,
+    CONF_SUNLIGHT_ENTITY_ID,
     CONF_SURFACE_TYPE,
+    CONF_TEMPERATURE_ENTITY_ID,
+    CONF_TYPICALLY_COVERED,
+    CONF_USAGE_ENTITY_ID,
+    CONF_WEATHER_ENTITY_ID,
     DEFAULT_POOL_ID,
     DEFAULT_POOL_NAME,
     DEFAULT_POOL_VOLUME_UNIT,
     DEFAULT_TESTING_METHOD,
     DOMAIN,
+    POOL_CONTEXT_ENTITY_KEYS,
     POOL_SANITIZER_TYPES,
     POOL_SURFACE_TYPES,
     POOL_TYPES,
@@ -52,6 +60,10 @@ def _select(options: tuple[str, ...]) -> selector.SelectSelector:
             mode=selector.SelectSelectorMode.DROPDOWN,
         )
     )
+
+
+def _entity_selector(domain: str | list[str]) -> selector.EntitySelector:
+    return selector.EntitySelector(selector.EntitySelectorConfig(domain=domain))
 
 
 def _pool_id_from_name(name: str) -> str:
@@ -109,6 +121,28 @@ def _pool_profile_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             CONF_DEFAULT_TESTING_METHOD,
             default=defaults.get(CONF_DEFAULT_TESTING_METHOD, DEFAULT_TESTING_METHOD),
         ): _select(WATER_TESTING_METHODS),
+        vol.Optional(
+            CONF_TYPICALLY_COVERED,
+            default=defaults.get(CONF_TYPICALLY_COVERED, False),
+        ): selector.BooleanSelector(),
+        _optional_with_default(CONF_WEATHER_ENTITY_ID, defaults): _entity_selector(
+            "weather"
+        ),
+        _optional_with_default(CONF_SUNLIGHT_ENTITY_ID, defaults): _entity_selector(
+            "sensor"
+        ),
+        _optional_with_default(CONF_RAINFALL_ENTITY_ID, defaults): _entity_selector(
+            "sensor"
+        ),
+        _optional_with_default(CONF_TEMPERATURE_ENTITY_ID, defaults): _entity_selector(
+            "sensor"
+        ),
+        _optional_with_default(CONF_COVER_ENTITY_ID, defaults): _entity_selector(
+            ["binary_sensor", "cover", "input_boolean", "switch"]
+        ),
+        _optional_with_default(CONF_USAGE_ENTITY_ID, defaults): _entity_selector(
+            ["binary_sensor", "input_boolean", "sensor", "switch"]
+        ),
     }
     return vol.Schema(schema)
 
@@ -127,8 +161,12 @@ def build_pool_config(
         CONF_DEFAULT_TESTING_METHOD: user_input.get(
             CONF_DEFAULT_TESTING_METHOD, DEFAULT_TESTING_METHOD
         ),
+        CONF_TYPICALLY_COVERED: bool(user_input.get(CONF_TYPICALLY_COVERED, False)),
     }
     for key in (CONF_POOL_TYPE, CONF_SURFACE_TYPE, CONF_SANITIZER_TYPE):
+        if value := _optional_text(user_input.get(key, "")):
+            pool[key] = value
+    for key in POOL_CONTEXT_ENTITY_KEYS:
         if value := _optional_text(user_input.get(key, "")):
             pool[key] = value
     volume = user_input.get(CONF_POOL_VOLUME)

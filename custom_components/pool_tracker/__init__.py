@@ -16,6 +16,7 @@ from .const import (
     CONF_POOL_ID,
     CONF_POOL_NAME,
     CONF_POOLS,
+    CONF_TYPICALLY_COVERED,
     DEFAULT_POOL_ID,
     DEFAULT_POOL_NAME,
     DEFAULT_TESTING_METHOD,
@@ -263,6 +264,7 @@ def _pool_profiles_from_entry(
     pool_id = pool.setdefault(CONF_POOL_ID, DEFAULT_POOL_ID)
     pool.setdefault(CONF_POOL_NAME, DEFAULT_POOL_NAME)
     pool.setdefault(CONF_DEFAULT_TESTING_METHOD, DEFAULT_TESTING_METHOD)
+    pool.setdefault(CONF_TYPICALLY_COVERED, False)
     return {pool_id: pool}
 
 

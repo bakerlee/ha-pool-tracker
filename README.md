@@ -1,14 +1,14 @@
 # Pool Tracker
 
-Pool Tracker is a free, local-first Home Assistant custom integration for manual pool maintenance logging.
+Pool Tracker is a free, local-first Home Assistant custom integration for manual pool maintenance logging and level prediction.
 
-It stores an append-only event log for water tests and chemical additions, exposes read-only derived sensors, and registers narrow Home Assistant service actions that dashboards, automations, OpenClaw, or other agents can call.
+It stores an append-only event log for water tests and chemical additions, exposes read-only derived sensors with uncertainty-aware predictions, and registers narrow Home Assistant service actions that dashboards, automations, OpenClaw, or other agents can call.
 
 ## Scope
 
-Pool Tracker v1 is recordkeeping only.
+Pool Tracker v1 is recordkeeping plus transparent level estimates.
 
-It does not provide chemical recommendations, dosing calculations, pump control, heater control, switch control, valve control, lock control, alarm control, outdoor power control, or automated dosing.
+It does not provide chemical recommendations, dosing calculations, pump control, heater control, switch control, valve control, lock control, alarm control, outdoor power control, or automated dosing. Predictions are estimates for display and planning context only.
 
 Logged chemical additions are human-entered records. They are not proof that a chemical was physically added.
 
@@ -43,8 +43,10 @@ Each config entry represents one pool and stores a small pool profile for future
 - Surface type, such as plaster, vinyl, fiberglass, tile, or painted
 - Sanitizer type, such as chlorine, salt chlorine generator, or bromine
 - Default water-testing method
+- Whether the pool is typically covered
+- Optional Home Assistant entities for weather, sunlight, rainfall, temperature, cover state, and usage
 
-These attributes can be changed from the integration options. They are context only in v1; Pool Tracker still does not calculate chemical recommendations.
+These attributes can be changed from the integration options. Optional entity values are ignored when they are missing, unavailable, or unknown. Pool Tracker still does not calculate chemical recommendations.
 
 ## Entities
 
@@ -58,8 +60,65 @@ Each configured pool device exposes read-only sensors derived from the event log
 - CYA/stabilizer
 - Water clarity
 - Chemical addition summary
+- Free chlorine prediction
+- pH prediction
+- Total alkalinity prediction
+- CYA/stabilizer prediction
 
 These sensors are display surfaces. They are not mutable input fields.
+
+## Predictions
+
+Prediction sensors estimate numeric water-test levels from the append-only event log. They currently cover free chlorine, pH, total alkalinity, and CYA/stabilizer.
+
+Each prediction sensor state is the current estimated value. Attributes include:
+
+- `unit`
+- `as_of`
+- `last_actual_value`
+- `last_actual_timestamp`
+- `uncertainty`
+- `lower_bound`
+- `upper_bound`
+- `model_inputs`
+- `series`
+- `actuals`
+
+`actuals` contains recent measured readings as chart points. `series` contains a bounded prediction line with `value`, `lower_bound`, `upper_bound`, `uncertainty`, and `is_actual`. Uncertainty is zero at actual reading timestamps and grows as time passes after a test. When a later reading disagrees with the prior estimate, future uncertainty increases.
+
+The v1 model is intentionally transparent and resilient to sparse data:
+
+- Free chlorine decays over time, faster with outdoor, uncovered, sunny, warm, rainy, or high-usage context.
+- pH drifts slowly toward a neutral/default target.
+- Total alkalinity and CYA drift slowly, with rainfall treated as possible dilution context.
+- Missing optional context falls back to neutral defaults.
+
+Weather context uses the configured weather entity's current attributes, and forecast attributes when the weather entity exposes them. Explicit configured sunlight, rainfall, and temperature sensor entities take precedence over weather-derived values.
+
+Example ApexCharts-style dashboard data source:
+
+```yaml
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Free chlorine estimate
+series:
+  - entity: sensor.pool_free_chlorine_prediction
+    name: Prediction
+    data_generator: |
+      return entity.attributes.series.map((point) => [
+        new Date(point.timestamp).getTime(),
+        point.value,
+      ]);
+  - entity: sensor.pool_free_chlorine_prediction
+    name: Actual readings
+    type: scatter
+    data_generator: |
+      return entity.attributes.actuals.map((point) => [
+        new Date(point.timestamp).getTime(),
+        point.value,
+      ]);
+```
 
 ## Service Actions
 

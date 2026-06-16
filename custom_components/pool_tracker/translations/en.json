@@ -12,7 +12,14 @@
           "pool_type": "Pool type",
           "surface_type": "Surface type",
           "sanitizer_type": "Sanitizer type",
-          "default_testing_method": "Default testing method"
+          "default_testing_method": "Default testing method",
+          "typically_covered": "Typically covered",
+          "weather_entity_id": "Weather entity",
+          "sunlight_entity_id": "Sunlight entity",
+          "rainfall_entity_id": "Rainfall entity",
+          "temperature_entity_id": "Temperature entity",
+          "cover_entity_id": "Cover entity",
+          "usage_entity_id": "Usage entity"
         }
       }
     }
@@ -29,7 +36,14 @@
           "pool_type": "Pool type",
           "surface_type": "Surface type",
           "sanitizer_type": "Sanitizer type",
-          "default_testing_method": "Default testing method"
+          "default_testing_method": "Default testing method",
+          "typically_covered": "Typically covered",
+          "weather_entity_id": "Weather entity",
+          "sunlight_entity_id": "Sunlight entity",
+          "rainfall_entity_id": "Rainfall entity",
+          "temperature_entity_id": "Temperature entity",
+          "cover_entity_id": "Cover entity",
+          "usage_entity_id": "Usage entity"
         }
       }
     }
@@ -141,6 +155,18 @@
       },
       "chemical_addition_summary": {
         "name": "Chemical addition summary"
+      },
+      "free_chlorine_prediction": {
+        "name": "Free chlorine prediction"
+      },
+      "ph_prediction": {
+        "name": "pH prediction"
+      },
+      "total_alkalinity_prediction": {
+        "name": "Total alkalinity prediction"
+      },
+      "cya_prediction": {
+        "name": "CYA/stabilizer prediction"
       }
     }
   }

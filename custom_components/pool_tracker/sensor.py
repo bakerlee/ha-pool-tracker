@@ -13,12 +13,28 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import (
+    STATE_OFF,
+    STATE_ON,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+    UnitOfTemperature,
+)
+from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
+    CONF_COVER_ENTITY_ID,
+    CONF_RAINFALL_ENTITY_ID,
+    CONF_SUNLIGHT_ENTITY_ID,
+    CONF_TEMPERATURE_ENTITY_ID,
+    CONF_USAGE_ENTITY_ID,
+    CONF_WEATHER_ENTITY_ID,
     DOMAIN,
+    NUMERIC_WATER_READINGS,
+    POOL_CONTEXT_ENTITY_KEYS,
     RECORD_TYPE_CHEMICAL_ADDITION,
     RECORD_TYPE_WATER_TEST,
     WATER_READING_CYA,
@@ -29,6 +45,7 @@ from .const import (
     WATER_TESTING_METHOD,
 )
 from .models import PoolRecord, chemical_summary, parse_utc
+from .prediction import PredictionContext, build_prediction
 
 PARALLEL_UPDATES = 0
 
@@ -39,6 +56,7 @@ class PoolSensorDescription(SensorEntityDescription):
 
     value_fn: Callable[[PoolTrackerSensor], Any]
     attr_fn: Callable[[PoolTrackerSensor], dict[str, Any] | None] = lambda entity: None
+    prediction_reading: str | None = None
 
 
 def _record_attrs(record: PoolRecord | None) -> dict[str, Any] | None:
@@ -75,6 +93,31 @@ def _latest_reading_attrs(
         return None
     record, value = latest
     return _record_attrs(record) | {"unit": value["unit"]}
+
+
+def _prediction_value(entity: PoolTrackerSensor, reading: str) -> Any:
+    prediction = entity.prediction(reading)
+    if prediction is None:
+        return None
+    return prediction.value
+
+
+def _prediction_attrs(entity: PoolTrackerSensor, reading: str) -> dict[str, Any] | None:
+    prediction = entity.prediction(reading)
+    if prediction is None:
+        return None
+    return {
+        "unit": prediction.unit,
+        "as_of": prediction.as_of,
+        "last_actual_value": prediction.last_actual_value,
+        "last_actual_timestamp": prediction.last_actual_timestamp,
+        "uncertainty": prediction.uncertainty,
+        "lower_bound": prediction.lower_bound,
+        "upper_bound": prediction.upper_bound,
+        "model_inputs": prediction.model_inputs,
+        "series": prediction.series,
+        "actuals": prediction.actuals,
+    }
 
 
 SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
@@ -176,6 +219,23 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
             entity, RECORD_TYPE_CHEMICAL_ADDITION
         ),
     ),
+    *(
+        PoolSensorDescription(
+            key=f"{reading}_prediction",
+            translation_key=f"{reading}_prediction",
+            native_unit_of_measurement="pH" if reading == WATER_READING_PH else "ppm",
+            state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=2,
+            value_fn=lambda entity, prediction_reading=reading: _prediction_value(
+                entity, prediction_reading
+            ),
+            attr_fn=lambda entity, prediction_reading=reading: _prediction_attrs(
+                entity, prediction_reading
+            ),
+            prediction_reading=reading,
+        )
+        for reading in NUMERIC_WATER_READINGS
+    ),
 )
 
 
@@ -211,6 +271,7 @@ class PoolTrackerSensor(SensorEntity):
         self.pool_id = pool_id
         self.pool_name = pool_name
         self.store = entry.runtime_data.store
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_{pool_id}_{description.key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, pool_id)},
@@ -221,9 +282,22 @@ class PoolTrackerSensor(SensorEntity):
     async def async_added_to_hass(self) -> None:
         """Subscribe to event-log updates."""
         self.async_on_remove(self.store.async_listen(self._handle_store_update))
+        if not self.entity_description.prediction_reading:
+            return
+        entity_ids = self._context_entity_ids()
+        if entity_ids:
+            self.async_on_remove(
+                async_track_state_change_event(
+                    self.hass, entity_ids, self._handle_context_update
+                )
+            )
 
     @callback
     def _handle_store_update(self) -> None:
+        self.async_write_ha_state()
+
+    @callback
+    def _handle_context_update(self, event: Event[EventStateChangedData]) -> None:
         self.async_write_ha_state()
 
     @property
@@ -235,3 +309,158 @@ class PoolTrackerSensor(SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return source record metadata."""
         return self.entity_description.attr_fn(self)
+
+    def prediction(self, reading: str):
+        """Return the current prediction for a numeric water reading."""
+        return build_prediction(
+            self.store.records(self.pool_id),
+            reading,
+            pool_profile=self._pool_profile,
+            context=self._prediction_context(),
+        )
+
+    @property
+    def _pool_profile(self) -> dict[str, Any]:
+        return self._entry.runtime_data.pool_profiles.get(self.pool_id, {})
+
+    def _context_entity_ids(self) -> list[str]:
+        profile = self._pool_profile
+        return [
+            entity_id
+            for key in POOL_CONTEXT_ENTITY_KEYS
+            if (entity_id := profile.get(key))
+        ]
+
+    def _prediction_context(self) -> PredictionContext:
+        profile = self._pool_profile
+        weather_state = _state(self.hass, profile.get(CONF_WEATHER_ENTITY_ID))
+        weather_attrs = weather_state.attributes if weather_state is not None else {}
+        forecast_attrs = _first_forecast_attrs(weather_attrs)
+
+        temperature = _temperature_f(
+            _number_state(self.hass, profile.get(CONF_TEMPERATURE_ENTITY_ID))
+        )
+        if temperature is None:
+            temperature = _temperature_f(
+                _float(weather_attrs.get("temperature")),
+                unit=weather_attrs.get("temperature_unit"),
+            )
+        if temperature is None:
+            temperature = _temperature_f(
+                _float(
+                    forecast_attrs.get("temperature")
+                    or forecast_attrs.get("native_temperature")
+                ),
+                unit=weather_attrs.get("temperature_unit"),
+            )
+
+        sunlight = _number_state(self.hass, profile.get(CONF_SUNLIGHT_ENTITY_ID))
+        if sunlight is None:
+            sunlight = _sunlight_from_weather_attrs(weather_attrs)
+        if sunlight is None:
+            sunlight = _sunlight_from_weather_attrs(forecast_attrs)
+
+        rainfall = _number_state(self.hass, profile.get(CONF_RAINFALL_ENTITY_ID))
+        if rainfall is None:
+            rainfall = _float(
+                weather_attrs.get("precipitation")
+                or weather_attrs.get("native_precipitation")
+            )
+        if rainfall is None:
+            rainfall = _float(
+                forecast_attrs.get("precipitation")
+                or forecast_attrs.get("native_precipitation")
+            )
+
+        covered = _bool_state(self.hass, profile.get(CONF_COVER_ENTITY_ID))
+        usage = _usage_state(self.hass, profile.get(CONF_USAGE_ENTITY_ID))
+        sources = {
+            key: entity_id
+            for key in POOL_CONTEXT_ENTITY_KEYS
+            if (entity_id := profile.get(key))
+        }
+        return PredictionContext(
+            covered=covered,
+            sunlight=sunlight,
+            rainfall=rainfall,
+            temperature_f=temperature,
+            usage=usage,
+            weather_condition=(
+                weather_state.state if weather_state is not None else None
+            ),
+            sources=sources or None,
+        )
+
+
+def _state(hass: HomeAssistant, entity_id: str | None):
+    if not entity_id:
+        return None
+    state = hass.states.get(entity_id)
+    if state is None or state.state in {STATE_UNAVAILABLE, STATE_UNKNOWN}:
+        return None
+    return state
+
+
+def _number_state(hass: HomeAssistant, entity_id: str | None) -> float | None:
+    state = _state(hass, entity_id)
+    if state is None:
+        return None
+    return _float(state.state)
+
+
+def _bool_state(hass: HomeAssistant, entity_id: str | None) -> bool | None:
+    state = _state(hass, entity_id)
+    if state is None:
+        return None
+    if state.state == STATE_ON:
+        return True
+    if state.state == STATE_OFF:
+        return False
+    if state.state in {"closed", "covered", "true", "yes"}:
+        return True
+    if state.state in {"open", "uncovered", "false", "no"}:
+        return False
+    return None
+
+
+def _usage_state(hass: HomeAssistant, entity_id: str | None) -> float | None:
+    state = _state(hass, entity_id)
+    if state is None:
+        return None
+    if state.state == STATE_ON:
+        return 1.0
+    if state.state == STATE_OFF:
+        return 0.0
+    return _float(state.state)
+
+
+def _sunlight_from_weather_attrs(attrs: dict[str, Any]) -> float | None:
+    if (uv_index := _float(attrs.get("uv_index"))) is not None:
+        return min(1.0, uv_index / 10)
+    if (cloud_coverage := _float(attrs.get("cloud_coverage"))) is not None:
+        return min(1.0, max(0.0, 1 - (cloud_coverage / 100)))
+    return None
+
+
+def _first_forecast_attrs(attrs: dict[str, Any]) -> dict[str, Any]:
+    forecast = attrs.get("forecast")
+    if isinstance(forecast, list) and forecast and isinstance(forecast[0], dict):
+        return forecast[0]
+    return {}
+
+
+def _temperature_f(value: float | None, unit: str | None = None) -> float | None:
+    if value is None:
+        return None
+    if unit in {UnitOfTemperature.CELSIUS, "C", "°C"}:
+        return (value * 9 / 5) + 32
+    return value
+
+
+def _float(value: Any) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except TypeError, ValueError:
+        return None

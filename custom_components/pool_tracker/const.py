@@ -14,6 +14,13 @@ CONF_POOL_TYPE = "pool_type"
 CONF_SURFACE_TYPE = "surface_type"
 CONF_SANITIZER_TYPE = "sanitizer_type"
 CONF_DEFAULT_TESTING_METHOD = "default_testing_method"
+CONF_TYPICALLY_COVERED = "typically_covered"
+CONF_WEATHER_ENTITY_ID = "weather_entity_id"
+CONF_SUNLIGHT_ENTITY_ID = "sunlight_entity_id"
+CONF_RAINFALL_ENTITY_ID = "rainfall_entity_id"
+CONF_TEMPERATURE_ENTITY_ID = "temperature_entity_id"
+CONF_COVER_ENTITY_ID = "cover_entity_id"
+CONF_USAGE_ENTITY_ID = "usage_entity_id"
 DEFAULT_POOL_ID = "pool"
 DEFAULT_POOL_NAME = "Pool"
 DEFAULT_POOL_VOLUME_UNIT = "gal"
@@ -33,6 +40,22 @@ WATER_READING_TOTAL_ALKALINITY = "total_alkalinity"
 WATER_READING_CYA = "cya"
 WATER_READING_WATER_CLARITY = "water_clarity"
 WATER_TESTING_METHOD = "testing_method"
+
+NUMERIC_WATER_READINGS = (
+    WATER_READING_FREE_CHLORINE,
+    WATER_READING_PH,
+    WATER_READING_TOTAL_ALKALINITY,
+    WATER_READING_CYA,
+)
+
+POOL_CONTEXT_ENTITY_KEYS = (
+    CONF_WEATHER_ENTITY_ID,
+    CONF_SUNLIGHT_ENTITY_ID,
+    CONF_RAINFALL_ENTITY_ID,
+    CONF_TEMPERATURE_ENTITY_ID,
+    CONF_COVER_ENTITY_ID,
+    CONF_USAGE_ENTITY_ID,
+)
 
 POOL_VOLUME_UNITS = ("gal", "L")
 POOL_TYPES = ("outdoor", "indoor", "spa", "swim_spa", "other")

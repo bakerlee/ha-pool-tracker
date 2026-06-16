@@ -16,6 +16,8 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_POOL_NAME,
     CONF_POOL_VOLUME,
     CONF_POOL_VOLUME_UNIT,
+    CONF_SUNLIGHT_ENTITY_ID,
+    CONF_TYPICALLY_COVERED,
     DOMAIN,
     SERVICE_LOG_WATER_TEST,
     WATER_TESTING_METHOD,
@@ -46,6 +48,7 @@ async def test_setup_unload_reload_config_entry(hass) -> None:
         entry.runtime_data.pool_profiles["pool"][CONF_DEFAULT_TESTING_METHOD]
         == "strips"
     )
+    assert entry.runtime_data.pool_profiles["pool"][CONF_TYPICALLY_COVERED] is False
     await hass.services.async_call(
         DOMAIN,
         SERVICE_LOG_WATER_TEST,
@@ -155,3 +158,53 @@ async def test_multiple_config_entries_share_store_and_route_by_pool_id(hass) ->
             {"ph": 7.4},
             blocking=True,
         )
+
+
+async def test_prediction_sensor_updates_after_water_test_and_context_change(
+    hass,
+) -> None:
+    """Prediction sensors update from records and optional context entities."""
+    hass.states.async_set("sensor.pool_sunlight", "0")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id="pool",
+        data={
+            CONF_POOL_ID: "pool",
+            CONF_POOL_NAME: "Pool",
+            CONF_SUNLIGHT_ENTITY_ID: "sensor.pool_sunlight",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_WATER_TEST,
+        {"free_chlorine": 3.0},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    state = _sensor_state(hass, "free_chlorine_prediction")
+    assert state is not None
+    assert state.state != "unknown"
+    assert state.attributes["model_inputs"]["sunlight"] == 0.0
+    assert state.attributes["series"]
+    assert state.attributes["actuals"]
+
+    hass.states.async_set("sensor.pool_sunlight", "100")
+    await hass.async_block_till_done()
+
+    updated = _sensor_state(hass, "free_chlorine_prediction")
+    assert updated is not None
+    assert updated.attributes["model_inputs"]["sunlight"] == 100.0
+
+
+def _sensor_state(hass, suffix: str):
+    for state in hass.states.async_all("sensor"):
+        if state.entity_id.endswith(suffix):
+            return state
+    return None

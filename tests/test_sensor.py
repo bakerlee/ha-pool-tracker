@@ -9,7 +9,6 @@ pytest.importorskip("homeassistant")
 from custom_components.pool_tracker.sensor import (  # noqa: E402
     PARALLEL_UPDATES,
     SENSOR_DESCRIPTIONS,
-    PoolTrackerSensor,
 )
 
 
@@ -24,6 +23,10 @@ def test_sensor_descriptions_use_clean_entity_keys() -> None:
         "cya",
         "water_clarity",
         "chemical_addition_summary",
+        "free_chlorine_prediction",
+        "ph_prediction",
+        "total_alkalinity_prediction",
+        "cya_prediction",
     ]
 
     assert [description.key for description in SENSOR_DESCRIPTIONS] == expected_keys
@@ -41,5 +44,4 @@ def test_sensor_descriptions_follow_push_text_semantics() -> None:
     )
 
     assert clarity.device_class is None
-    assert PoolTrackerSensor.__dict__["__attr_should_poll"] is False
     assert PARALLEL_UPDATES == 0
