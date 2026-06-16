@@ -68,8 +68,13 @@ CHEMICAL_AMOUNT_VOLUME_UNITS = (
     UnitOfVolume.FLUID_OUNCES,
     UnitOfVolume.GALLONS,
 )
-CHEMICAL_AMOUNT_UNITS = tuple(
-    unit.value for unit in CHEMICAL_AMOUNT_WEIGHT_UNITS + CHEMICAL_AMOUNT_VOLUME_UNITS
+CHEMICAL_AMOUNT_INTEGRATION_UNITS = ("Tbsp",)
+CHEMICAL_AMOUNT_UNITS = (
+    tuple(
+        unit.value
+        for unit in CHEMICAL_AMOUNT_WEIGHT_UNITS + CHEMICAL_AMOUNT_VOLUME_UNITS
+    )
+    + CHEMICAL_AMOUNT_INTEGRATION_UNITS
 )
 
 WATER_READING_FREE_CHLORINE = "free_chlorine"
@@ -134,6 +139,7 @@ SELECT_LABELS = {
     "oz": "Ounces",
     "lb": "Pounds",
     "mL": "Milliliters",
+    "Tbsp": "Tablespoons",
     "fl. oz.": "Fluid ounces",
     "gal": "Gallons",
     "L": "Liters",

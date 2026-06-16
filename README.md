@@ -163,14 +163,14 @@ time.
 
 Requires `chemical`, `amount`, and `unit`. `chemical` is selected from Pool
 Tracker's supported chemical list, and `unit` is a Home Assistant mass or volume
-unit.
+unit, plus `Tbsp` for small-pool additions.
 
 ```yaml
 service: pool_tracker.log_chemical_addition
 data:
   chemical: dichlor
-  amount: 0.5
-  unit: oz
+  amount: 1
+  unit: Tbsp
   source: agent
 ```
 
@@ -178,14 +178,14 @@ Both service actions return a `record_id` when called with Home Assistant servic
 
 ## OpenClaw Examples
 
-For "I just added 0.5 oz dichlor":
+For "I just added 1 Tbsp dichlor":
 
 ```yaml
 service: pool_tracker.log_chemical_addition
 data:
   chemical: dichlor
-  amount: 0.5
-  unit: oz
+  amount: 1
+  unit: Tbsp
   source: agent
 ```
 

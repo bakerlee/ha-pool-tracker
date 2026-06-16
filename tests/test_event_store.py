@@ -174,5 +174,5 @@ def test_chemical_addition_requires_supported_chemical_and_unit() -> None:
             pool_id="pool",
             chemical="dichlor",
             amount=1,
-            unit="Tbsp",
+            unit="scoop",
         )

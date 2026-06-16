@@ -59,6 +59,12 @@ def test_chemical_addition_service_validation_requires_core_fields() -> None:
         "unit": "oz",
         "source": "service",
     }
+    assert schema({"chemical": "dichlor", "amount": "1", "unit": "Tbsp"}) == {
+        "chemical": "dichlor",
+        "amount": 1.0,
+        "unit": "Tbsp",
+        "source": "service",
+    }
 
 
 def test_chemical_addition_service_validation_rejects_unknown_values() -> None:
@@ -69,4 +75,4 @@ def test_chemical_addition_service_validation_rejects_unknown_values() -> None:
         schema({"chemical": "mystery powder", "amount": 1, "unit": "oz"})
 
     with pytest.raises(vol.Invalid):
-        schema({"chemical": "dichlor", "amount": 1, "unit": "Tbsp"})
+        schema({"chemical": "dichlor", "amount": 1, "unit": "scoop"})

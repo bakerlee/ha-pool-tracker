@@ -152,6 +152,8 @@ log_chemical_addition:
               label: Milliliters
             - value: L
               label: Liters
+            - value: Tbsp
+              label: Tablespoons
             - value: fl. oz.
               label: Fluid ounces
             - value: gal

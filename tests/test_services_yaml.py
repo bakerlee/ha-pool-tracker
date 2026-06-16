@@ -27,6 +27,7 @@ def test_chemical_addition_service_uses_selectors() -> None:
         "lb",
         "mL",
         "L",
+        "Tbsp",
         "fl. oz.",
         "gal",
     }
