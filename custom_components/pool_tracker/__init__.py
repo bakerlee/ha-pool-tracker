@@ -35,6 +35,7 @@ from .const import (
     WATER_READING_WATER_CLARITY,
     WATER_TESTING_METHOD,
     WATER_TESTING_METHODS,
+    normalize_chemical_amount_unit,
 )
 from .models import build_chemical_addition_record, build_water_test_record
 from .store import PoolTrackerStore, create_home_assistant_store
@@ -125,7 +126,9 @@ def _chemical_addition_service_schema():
             vol.Optional("notes"): cv.string,
             vol.Required("chemical"): vol.In(CHEMICAL_OPTIONS),
             vol.Required("amount"): _positive_number,
-            vol.Required("unit"): vol.In(CHEMICAL_AMOUNT_UNITS),
+            vol.Required("unit"): vol.All(
+                cv.string, normalize_chemical_amount_unit, vol.In(CHEMICAL_AMOUNT_UNITS)
+            ),
         }
     )
 

@@ -65,6 +65,13 @@ def test_chemical_addition_service_validation_requires_core_fields() -> None:
         "unit": "Tbsp",
         "source": "service",
     }
+    for unit in ("tbsp", "tablespoon", "tablespoons", "Tablespoons"):
+        assert schema({"chemical": "dichlor", "amount": "1", "unit": unit}) == {
+            "chemical": "dichlor",
+            "amount": 1.0,
+            "unit": "Tbsp",
+            "source": "service",
+        }
 
 
 def test_chemical_addition_service_validation_rejects_unknown_values() -> None:

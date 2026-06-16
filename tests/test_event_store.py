@@ -161,6 +161,14 @@ def test_water_test_requires_content() -> None:
 
 def test_chemical_addition_requires_supported_chemical_and_unit() -> None:
     """Chemical-addition records use bounded chemical and unit values."""
+    record = build_chemical_addition_record(
+        pool_id="pool",
+        chemical="dichlor",
+        amount=1,
+        unit="tablespoons",
+    )
+    assert record["unit"] == "Tbsp"
+
     with pytest.raises(ValueError, match="Unsupported chemical"):
         build_chemical_addition_record(
             pool_id="pool",

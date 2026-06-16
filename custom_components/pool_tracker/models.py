@@ -19,6 +19,7 @@ from .const import (
     WATER_READING_WATER_CLARITY,
     WATER_TEST_READING_UNITS,
     WATER_TESTING_METHOD,
+    normalize_chemical_amount_unit,
 )
 
 StorageData = dict[str, Any]
@@ -116,7 +117,7 @@ def build_chemical_addition_record(
 ) -> PoolRecord:
     """Build an append-only chemical addition record."""
     chemical = chemical.strip()
-    unit = unit.strip()
+    unit = normalize_chemical_amount_unit(unit)
     if not chemical:
         raise ValueError("Chemical is required.")
     if chemical not in CHEMICAL_OPTIONS:

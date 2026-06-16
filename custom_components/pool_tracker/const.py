@@ -76,6 +76,18 @@ CHEMICAL_AMOUNT_UNITS = (
     )
     + CHEMICAL_AMOUNT_INTEGRATION_UNITS
 )
+CHEMICAL_AMOUNT_UNIT_ALIASES = {
+    "tablespoon": "Tbsp",
+    "tablespoons": "Tbsp",
+    "tbsp": "Tbsp",
+}
+
+
+def normalize_chemical_amount_unit(value: str) -> str:
+    """Return the canonical stored chemical amount unit."""
+    unit = value.strip()
+    return CHEMICAL_AMOUNT_UNIT_ALIASES.get(unit.lower(), unit)
+
 
 WATER_READING_FREE_CHLORINE = "free_chlorine"
 WATER_READING_PH = "ph"
