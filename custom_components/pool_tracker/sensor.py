@@ -117,8 +117,6 @@ def _prediction_attrs(entity: PoolTrackerSensor, reading: str) -> dict[str, Any]
     prediction = entity.prediction(reading)
     if prediction is None:
         return None
-    # The full series/actuals are intentionally kept out of state attributes to
-    # avoid recorder bloat; fetch them on demand via the get_prediction service.
     return {
         "unit": prediction.unit,
         "as_of": prediction.as_of,
@@ -128,6 +126,9 @@ def _prediction_attrs(entity: PoolTrackerSensor, reading: str) -> dict[str, Any]
         "lower_bound": prediction.lower_bound,
         "upper_bound": prediction.upper_bound,
         "model_inputs": prediction.model_inputs,
+        "series": prediction.series,
+        "actuals": prediction.actuals,
+        "chemical_additions": prediction.chemical_additions,
     }
 
 
@@ -145,6 +146,7 @@ def _prediction_response(prediction: ReadingPrediction) -> dict[str, Any]:
         "model_inputs": prediction.model_inputs,
         "series": prediction.series,
         "actuals": prediction.actuals,
+        "chemical_additions": prediction.chemical_additions,
     }
 
 

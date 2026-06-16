@@ -260,6 +260,59 @@ def test_free_chlorine_prediction_applies_dichlor_addition() -> None:
         }
     ]
     assert prediction.model_inputs["pool_volume_source"] == "configured_gallons"
+    assert prediction.chemical_additions == [
+        {
+            "timestamp": addition_time.isoformat(),
+            "record_id": "dichlor-dose",
+            "chemical": "dichlor",
+            "amount": 1,
+            "unit": "Tbsp",
+            "summary": "dichlor: 1 Tbsp",
+            "value": 5.242,
+            "free_chlorine_delta": 5.242,
+        }
+    ]
+
+
+def test_chemical_addition_markers_include_unrecognized_chemicals() -> None:
+    """Chart markers include all chemical additions, even model-neutral ones."""
+    start = datetime(2026, 6, 10, 12, tzinfo=UTC)
+    addition_time = start + timedelta(hours=12)
+
+    prediction = build_prediction(
+        [
+            build_water_test_record(
+                pool_id="pool",
+                readings={WATER_READING_PH: 7.2},
+                event_timestamp=start,
+            ),
+            build_chemical_addition_record(
+                pool_id="pool",
+                chemical="muriatic acid",
+                amount=4,
+                unit="oz",
+                event_timestamp=addition_time,
+                record_id="acid-dose",
+                notes="small adjustment",
+            ),
+        ],
+        WATER_READING_PH,
+        now=start + timedelta(days=1),
+    )
+
+    assert prediction is not None
+    assert prediction.chemical_additions == [
+        {
+            "timestamp": addition_time.isoformat(),
+            "record_id": "acid-dose",
+            "chemical": "muriatic acid",
+            "amount": 4,
+            "unit": "oz",
+            "summary": "muriatic acid: 4 oz",
+            "notes": "small adjustment",
+            "value": 7.207,
+        }
+    ]
 
 
 def test_free_chlorine_prediction_requires_prior_reading_before_addition() -> None:

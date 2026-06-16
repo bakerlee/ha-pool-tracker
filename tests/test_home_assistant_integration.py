@@ -217,13 +217,14 @@ async def test_prediction_sensor_updates_after_water_test_and_context_change(
     assert state is not None
     assert state.state != "unknown"
     assert state.attributes["model_inputs"]["sunlight"] == 0.0
-    # The full series/actuals live behind the service, not in state attributes.
-    assert "series" not in state.attributes
-    assert "actuals" not in state.attributes
+    assert state.attributes["series"]
+    assert state.attributes["actuals"]
+    assert state.attributes["chemical_additions"] == []
 
     prediction = await _get_prediction(hass, state.entity_id)
-    assert prediction["series"]
-    assert prediction["actuals"]
+    assert prediction["series"] == state.attributes["series"]
+    assert prediction["actuals"] == state.attributes["actuals"]
+    assert prediction["chemical_additions"] == state.attributes["chemical_additions"]
 
     hass.states.async_set("weather.home", "sunny", {"uv_index": 10})
     await hass.async_block_till_done()
@@ -269,6 +270,7 @@ async def test_prediction_sensor_applies_logged_chlorine_addition(hass) -> None:
     assert state is not None
     assert float(state.state) > 0
     assert state.attributes["model_inputs"]["chemical_additions"]
+    assert state.attributes["chemical_additions"]
 
 
 async def test_prediction_sensor_applies_chlorine_addition_without_prior_reading(

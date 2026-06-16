@@ -27,6 +27,7 @@ DEFAULT_HISTORY = timedelta(days=14)
 DEFAULT_FUTURE = timedelta(days=3)
 MAX_SERIES_POINTS = 80
 MAX_ACTUAL_POINTS = 40
+MAX_CHEMICAL_POINTS = 40
 DEFAULT_POOL_VOLUME_GAL = 10000
 DEFAULT_SPA_VOLUME_GAL = 400
 DEFAULT_SWIM_SPA_VOLUME_GAL = 1500
@@ -92,6 +93,7 @@ class ReadingPrediction:
     model_inputs: dict[str, Any]
     series: list[dict[str, Any]]
     actuals: list[dict[str, Any]]
+    chemical_additions: list[dict[str, Any]]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -231,6 +233,16 @@ def build_prediction(
         for actual in actuals
         if actual.timestamp >= window_start
     ][-MAX_ACTUAL_POINTS:]
+    bounded_chemical_additions = _chemical_addition_markers(
+        records,
+        reading,
+        actuals,
+        profile=profile,
+        context=context,
+        chemical_effects=chemical_effects,
+        window_start=window_start,
+        window_end=future_end,
+    )[-MAX_CHEMICAL_POINTS:]
 
     return ReadingPrediction(
         reading=reading,
@@ -254,7 +266,98 @@ def build_prediction(
         ),
         series=bounded_series,
         actuals=bounded_actuals,
+        chemical_additions=bounded_chemical_additions,
     )
+
+
+def _chemical_addition_markers(
+    records: list[PoolRecord],
+    reading: str,
+    actuals: list[_ActualReading],
+    *,
+    profile: dict[str, Any],
+    context: PredictionContext,
+    chemical_effects: list[_ChemicalEffect],
+    window_start: datetime,
+    window_end: datetime,
+) -> list[dict[str, Any]]:
+    effects_by_record_id = {effect.record_id: effect for effect in chemical_effects}
+    markers: list[dict[str, Any]] = []
+    for record in records:
+        if record.get("type") != RECORD_TYPE_CHEMICAL_ADDITION:
+            continue
+        timestamp = parse_utc(record["event_timestamp"])
+        if timestamp < window_start or timestamp > window_end:
+            continue
+
+        marker: dict[str, Any] = {
+            "timestamp": timestamp.isoformat(),
+            "record_id": record["id"],
+            "chemical": record.get("chemical"),
+            "amount": record.get("amount"),
+            "unit": record.get("unit"),
+            "summary": _chemical_summary(record),
+        }
+        if notes := record.get("notes"):
+            marker["notes"] = notes
+
+        if (
+            value := _marker_value(
+                reading,
+                timestamp,
+                actuals,
+                profile=profile,
+                context=context,
+                chemical_effects=chemical_effects,
+            )
+        ) is not None:
+            marker["value"] = value
+
+        effect = effects_by_record_id.get(record["id"])
+        if effect is not None:
+            marker["free_chlorine_delta"] = round(effect.free_chlorine_delta, 3)
+
+        markers.append(marker)
+    return sorted(
+        markers, key=lambda marker: (marker["timestamp"], marker["record_id"])
+    )
+
+
+def _marker_value(
+    reading: str,
+    timestamp: datetime,
+    actuals: list[_ActualReading],
+    *,
+    profile: dict[str, Any],
+    context: PredictionContext,
+    chemical_effects: list[_ChemicalEffect],
+) -> float | None:
+    previous = None
+    for actual in actuals:
+        if actual.timestamp > timestamp:
+            break
+        previous = actual
+    if previous is None:
+        return None
+    return round(
+        _predict_at(
+            reading,
+            previous.value,
+            previous.timestamp,
+            timestamp,
+            profile=profile,
+            context=context,
+            chemical_effects=chemical_effects,
+        ),
+        3,
+    )
+
+
+def _chemical_summary(record: PoolRecord) -> str:
+    amount = record.get("amount")
+    if isinstance(amount, float) and amount.is_integer():
+        amount = int(amount)
+    return f"{record.get('chemical')}: {amount} {record.get('unit')}"
 
 
 def _actual_readings(records: list[PoolRecord], reading: str) -> list[_ActualReading]:

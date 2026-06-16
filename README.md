@@ -81,7 +81,7 @@ Each prediction sensor state is the current estimated value. Attributes include:
 - `upper_bound`
 - `model_inputs`
 
-The `pool_tracker.get_prediction` action returns `actuals` and `series` for charting. `actuals` contains recent measured readings as chart points. `series` contains a bounded prediction line with `value`, `lower_bound`, `upper_bound`, `uncertainty`, and `is_actual`. Uncertainty is zero at actual reading timestamps and grows as time passes after a test. When a later reading disagrees with the prior estimate, future uncertainty increases.
+Prediction sensor attributes include `actuals`, `series`, and `chemical_additions` for charting. `actuals` contains recent measured readings as chart points. `series` contains a bounded prediction line with `value`, `lower_bound`, `upper_bound`, `uncertainty`, and `is_actual`. `chemical_additions` contains recent chemical-event markers with the event timestamp, summary, and a chart `value` when the event can be placed against the current reading prediction. The `pool_tracker.get_prediction` action returns the same chart data for callers that prefer a service response. Uncertainty is zero at actual reading timestamps and grows as time passes after a test. When a later reading disagrees with the prior estimate, future uncertainty increases.
 
 The v1 model is intentionally transparent and resilient to sparse data:
 
@@ -97,30 +97,83 @@ Weather context uses the configured weather entity's current attributes, and for
 
 For chemical additions, Pool Tracker uses configured volume when available. If volume is missing, it falls back to a rough default by pool type and reports the volume source in `model_inputs`. This is still an estimate, not a dosing recommendation.
 
-Example ApexCharts-style dashboard data source:
+Example ApexCharts dashboard card for one all-in graph:
 
 ```yaml
 type: custom:apexcharts-card
+graph_span: 5d
+span:
+  start: day
+  offset: -2d
+now:
+  show: true
 header:
   show: true
-  title: Free chlorine estimate
+  title: Free chlorine
+  show_states: true
+apex_config:
+  chart:
+    height: 320px
+  markers:
+    size: [0, 0, 0, 5, 6]
+  stroke:
+    width: [1, 1, 3, 0, 0]
+    dashArray: [4, 4, 0, 0, 0]
+  tooltip:
+    shared: false
+yaxis:
+  - min: 0
+    decimals: 2
 series:
   - entity: sensor.pool_free_chlorine_predicted
+    name: Lower bound
+    color: "#9aa0a6"
+    show:
+      in_header: false
+    data_generator: |
+      return entity.attributes.series.map((point) => [
+        new Date(point.timestamp).getTime(),
+        point.lower_bound,
+      ]);
+  - entity: sensor.pool_free_chlorine_predicted
+    name: Upper bound
+    color: "#9aa0a6"
+    show:
+      in_header: false
+    data_generator: |
+      return entity.attributes.series.map((point) => [
+        new Date(point.timestamp).getTime(),
+        point.upper_bound,
+      ]);
+  - entity: sensor.pool_free_chlorine_predicted
     name: Prediction
+    color: "#1a73e8"
     data_generator: |
       return entity.attributes.series.map((point) => [
         new Date(point.timestamp).getTime(),
         point.value,
       ]);
   - entity: sensor.pool_free_chlorine_predicted
-    name: Actual readings
-    type: scatter
+    name: Tests
+    color: "#188038"
     data_generator: |
       return entity.attributes.actuals.map((point) => [
         new Date(point.timestamp).getTime(),
         point.value,
       ]);
+  - entity: sensor.pool_free_chlorine_predicted
+    name: Chemicals
+    color: "#fa7b17"
+    data_generator: |
+      return entity.attributes.chemical_additions
+        .filter((point) => point.value !== undefined)
+        .map((point) => [
+          new Date(point.timestamp).getTime(),
+          point.value,
+        ]);
 ```
+
+Use the matching prediction entity for the reading you want to inspect, such as `sensor.pool_ph_predicted`, `sensor.pool_total_alkalinity_predicted`, or `sensor.pool_cya_predicted`.
 
 ## Service Actions
 
