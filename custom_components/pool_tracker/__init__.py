@@ -228,7 +228,6 @@ async def _async_setup_frontend(hass: HomeAssistant) -> None:
         sidebar_icon="mdi:pool",
         module_url=FRONTEND_MODULE_URL,
         config={"cardType": "pool-tracker-graph-card"},
-        config_panel_domain=DOMAIN,
     )
 
 

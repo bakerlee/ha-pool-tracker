@@ -55,6 +55,7 @@ async def test_frontend_setup_registers_static_assets_panel_and_card_module(
     assert panel.sidebar_icon == "mdi:pool"
     assert panel.config["_panel_custom"]["module_url"] == FRONTEND_MODULE_URL
     assert panel.config["_panel_custom"]["name"] == "pool-tracker-panel"
+    assert panel.config["_panel_custom"].get("config_panel_domain") is None
 
 
 def test_frontend_module_registers_panel_and_lovelace_card() -> None:
