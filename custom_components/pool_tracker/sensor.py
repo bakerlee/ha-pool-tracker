@@ -29,6 +29,7 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_platform
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
@@ -313,6 +314,32 @@ def _enabled_sensor_descriptions(
     return tuple(descriptions)
 
 
+def _sensor_unique_id(entry: ConfigEntry, pool_id: str, description_key: str) -> str:
+    """Return the unique ID for a Pool Tracker sensor entity."""
+    return f"{entry.entry_id}_{pool_id}_{description_key}"
+
+
+def _prune_disabled_metric_entities(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    pool_id: str,
+    pool_profile: dict[str, Any],
+) -> None:
+    """Remove registry entries for metrics disabled in the pool profile."""
+    enabled_keys = {
+        description.key for description in _enabled_sensor_descriptions(pool_profile)
+    }
+    entity_registry = er.async_get(hass)
+    for description in SENSOR_DESCRIPTIONS:
+        if description.key in enabled_keys:
+            continue
+        entity_id = entity_registry.async_get_entity_id(
+            "sensor", DOMAIN, _sensor_unique_id(entry, pool_id, description.key)
+        )
+        if entity_id is not None:
+            entity_registry.async_remove(entity_id)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -326,6 +353,10 @@ async def async_setup_entry(
         supports_response=SupportsResponse.ONLY,
     )
     runtime = entry.runtime_data
+    for pool_id in runtime.pools:
+        _prune_disabled_metric_entities(
+            hass, entry, pool_id, runtime.pool_profiles.get(pool_id, {})
+        )
     async_add_entities(
         PoolTrackerSensor(entry, pool_id, pool_name, description)
         for pool_id, pool_name in runtime.pools.items()
@@ -355,7 +386,7 @@ class PoolTrackerSensor(SensorEntity):
         self.store = entry.runtime_data.store
         self._entry = entry
         self._prediction_cache: dict[str, ReadingPrediction | None] = {}
-        self._attr_unique_id = f"{entry.entry_id}_{pool_id}_{description.key}"
+        self._attr_unique_id = _sensor_unique_id(entry, pool_id, description.key)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, pool_id)},
             name=pool_name,

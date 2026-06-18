@@ -10,6 +10,7 @@ pytest.importorskip("homeassistant")
 
 from homeassistant.exceptions import ServiceValidationError  # noqa: E402
 from homeassistant.helpers import device_registry as dr  # noqa: E402
+from homeassistant.helpers import entity_registry as er  # noqa: E402
 from pytest_homeassistant_custom_component.common import MockConfigEntry  # noqa: E402
 
 from custom_components.pool_tracker.const import (  # noqa: E402
@@ -139,7 +140,7 @@ async def test_fresh_pool_chlorine_sensors_start_unknown(hass) -> None:
 async def test_disabled_metrics_do_not_create_reading_or_prediction_sensors(
     hass,
 ) -> None:
-    """Configured metric tracking controls the pool's exposed sensor set."""
+    """Configured metric tracking controls and prunes the exposed sensor set."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         title="Pool",
@@ -151,6 +152,23 @@ async def test_disabled_metrics_do_not_create_reading_or_prediction_sensors(
         },
     )
     entry.add_to_hass(hass)
+    entity_registry = er.async_get(hass)
+    ph_unique_id = f"{entry.entry_id}_pool_ph"
+    ph_predicted_unique_id = f"{entry.entry_id}_pool_ph_predicted"
+    entity_registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        ph_unique_id,
+        suggested_object_id="pool_ph",
+        config_entry=entry,
+    )
+    entity_registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        ph_predicted_unique_id,
+        suggested_object_id="pool_ph_predicted",
+        config_entry=entry,
+    )
 
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -162,6 +180,11 @@ async def test_disabled_metrics_do_not_create_reading_or_prediction_sensors(
     assert _sensor_state(hass, "ph") is None
     assert _sensor_state(hass, "ph_predicted") is None
     assert _sensor_state(hass, "free_chlorine_predicted") is None
+    assert entity_registry.async_get_entity_id("sensor", DOMAIN, ph_unique_id) is None
+    assert (
+        entity_registry.async_get_entity_id("sensor", DOMAIN, ph_predicted_unique_id)
+        is None
+    )
 
 
 async def test_multiple_config_entries_share_store_and_route_by_pool_id(hass) -> None:
