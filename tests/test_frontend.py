@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 pytest.importorskip("homeassistant")
 
 from homeassistant.components import frontend  # noqa: E402
+from homeassistant.components.lovelace.const import LOVELACE_DATA  # noqa: E402
 
 from custom_components.pool_tracker import (  # noqa: E402
     FRONTEND_MODULE_URL,
@@ -39,6 +41,13 @@ async def test_frontend_setup_registers_static_assets_panel_and_card_module(
         lambda action, url: module_events.append((action, url)),
         [],
     )
+    hass.data[LOVELACE_DATA] = SimpleNamespace(dashboards={})
+    frontend.async_register_built_in_panel(
+        hass,
+        "custom",
+        frontend_url_path=FRONTEND_PANEL_URL_PATH,
+        sidebar_title="Old Pool Tracker",
+    )
 
     await _async_setup_frontend(hass)
 
@@ -50,25 +59,28 @@ async def test_frontend_setup_registers_static_assets_panel_and_card_module(
     assert module_events == [("added", FRONTEND_MODULE_URL)]
 
     panel = hass.data[frontend.DATA_PANELS][FRONTEND_PANEL_URL_PATH]
-    assert panel.component_name == "custom"
+    assert panel.component_name == "lovelace"
     assert panel.sidebar_title == "Pool Tracker"
     assert panel.sidebar_icon == "mdi:pool"
-    assert panel.config["_panel_custom"]["module_url"] == FRONTEND_MODULE_URL
-    assert panel.config["_panel_custom"]["name"] == "pool-tracker-panel"
-    assert panel.config["_panel_custom"].get("config_panel_domain") is None
+    assert panel.config == {"mode": "storage"}
+
+    lovelace_config = hass.data[LOVELACE_DATA].dashboards[FRONTEND_PANEL_URL_PATH]
+    assert await lovelace_config.async_load(False) == {
+        "title": "Pool Tracker",
+        "strategy": {"type": "custom:pool-tracker"},
+        "url_path": FRONTEND_PANEL_URL_PATH,
+    }
 
 
-def test_frontend_module_registers_panel_and_lovelace_card() -> None:
-    """The shipped JS module contains the panel, strategy, and graph card."""
+def test_frontend_module_registers_dashboard_strategy_and_lovelace_card() -> None:
+    """The shipped JS module contains the strategy and graph card."""
     module = Path(
         "custom_components/pool_tracker/frontend/pool-tracker-frontend.js"
     ).read_text()
 
     assert 'const CARD_TAG = "pool-tracker-graph-card"' in module
-    assert 'const PANEL_TAG = "pool-tracker-panel"' in module
     assert 'const STRATEGY_TAG = "ll-strategy-dashboard-pool-tracker"' in module
     assert "customElements.define(CARD_TAG, PoolTrackerGraphCard)" in module
-    assert "customElements.define(PANEL_TAG, PoolTrackerPanel)" in module
     assert "customElements.define(STRATEGY_TAG, PoolTrackerDashboardStrategy)" in module
     assert 'data-log="water-test"' in module
     assert 'data-log="chemical-addition"' in module
@@ -113,18 +125,14 @@ def test_frontend_preserves_forms_between_home_assistant_updates() -> None:
     assert "this._render({ preserveFormState: false })" in module
 
 
-def test_frontend_panel_reuses_card_between_home_assistant_updates() -> None:
-    """The sidebar panel should render standard Lovelace cards."""
+def test_frontend_strategy_uses_standard_lovelace_cards() -> None:
+    """The dashboard strategy should render standard Lovelace cards."""
     module = Path(
         "custom_components/pool_tracker/frontend/pool-tracker-frontend.js"
     ).read_text()
 
-    assert "window.loadCardHelpers()" in module
-    assert "helpers.createCardElement(config)" in module
-    assert "lovelaceCardHelpers()" in module
-    assert "_renderFallback(error)" in module
-    assert "window.loadCardHelpers is not available" in module
-    assert "_updateCards()" in module
+    assert "class PoolTrackerPanel" not in module
+    assert "window.loadCardHelpers()" not in module
     assert 'type: "tile"' in module
     assert 'type: "entities"' in module
     assert 'type: "markdown"' in module

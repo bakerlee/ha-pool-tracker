@@ -9,10 +9,14 @@ from typing import TYPE_CHECKING, Any
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from homeassistant.components import frontend, panel_custom
+from homeassistant.components import frontend
 from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
+from homeassistant.components.lovelace.const import LOVELACE_DATA, MODE_STORAGE
+from homeassistant.components.lovelace.dashboard import LovelaceConfig
 from homeassistant.core import SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers.json import json_bytes, json_fragment
 
 from .const import (
     CHEMICAL_AMOUNT_UNITS,
@@ -50,6 +54,38 @@ _LOGGER = logging.getLogger(__name__)
 FRONTEND_URL_BASE = f"/{DOMAIN}_static"
 FRONTEND_MODULE_URL = f"{FRONTEND_URL_BASE}/pool-tracker-frontend.js"
 FRONTEND_PANEL_URL_PATH = DOMAIN
+
+
+class PoolTrackerLovelaceConfig(LovelaceConfig):
+    """Integration-owned Lovelace dashboard for the Pool Tracker sidebar tab."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        super().__init__(
+            hass,
+            FRONTEND_PANEL_URL_PATH,
+            {
+                "title": "Pool Tracker",
+                "strategy": {"type": "custom:pool-tracker"},
+            },
+        )
+        self._json_config = json_fragment(json_bytes(self.config))
+
+    @property
+    def mode(self) -> str:
+        """Return the Lovelace config mode."""
+        return MODE_STORAGE
+
+    async def async_get_info(self) -> dict[str, Any]:
+        """Return dashboard metadata."""
+        return {"mode": self.mode, "views": 1}
+
+    async def async_load(self, force: bool) -> dict[str, Any]:
+        """Return the generated dashboard config."""
+        return self.config
+
+    async def async_json(self, force: bool) -> json_fragment:
+        """Return the dashboard config as JSON."""
+        return self._json_config
 
 
 @dataclass
@@ -206,17 +242,20 @@ async def _async_setup_frontend(hass: HomeAssistant) -> None:
     if frontend.DATA_EXTRA_MODULE_URL in hass.data:
         frontend.add_extra_js_url(hass, FRONTEND_MODULE_URL)
 
-    if frontend.async_panel_exists(hass, FRONTEND_PANEL_URL_PATH):
+    if LOVELACE_DATA not in hass.data:
         return
 
-    await panel_custom.async_register_panel(
+    hass.data[LOVELACE_DATA].dashboards[FRONTEND_PANEL_URL_PATH] = (
+        PoolTrackerLovelaceConfig(hass)
+    )
+    frontend.async_register_built_in_panel(
         hass,
+        LOVELACE_DOMAIN,
         frontend_url_path=FRONTEND_PANEL_URL_PATH,
-        webcomponent_name="pool-tracker-panel",
         sidebar_title="Pool Tracker",
         sidebar_icon="mdi:pool",
-        module_url=FRONTEND_MODULE_URL,
-        config={"cardType": "pool-tracker-graph-card"},
+        config={"mode": MODE_STORAGE},
+        update=frontend.async_panel_exists(hass, FRONTEND_PANEL_URL_PATH),
     )
 
 

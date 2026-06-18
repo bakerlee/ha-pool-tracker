@@ -1,5 +1,4 @@
 const CARD_TAG = "pool-tracker-graph-card";
-const PANEL_TAG = "pool-tracker-panel";
 const STRATEGY_TAG = "ll-strategy-dashboard-pool-tracker";
 const STRATEGY_TYPE = "pool-tracker";
 
@@ -475,108 +474,6 @@ class PoolTrackerGraphCard extends HTMLElement {
   }
 }
 
-class PoolTrackerPanel extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: "open" });
-    this._cards = [];
-    this._signature = undefined;
-    this._renderToken = undefined;
-  }
-
-  set hass(hass) {
-    this._hass = hass;
-    this._renderLovelace();
-  }
-
-  set panel(panel) {
-    this._panel = panel;
-    this._renderLovelace();
-  }
-
-  async _renderLovelace() {
-    if (!this.shadowRoot || !this._hass) {
-      return;
-    }
-    const cards = poolTrackerCards(this._hass);
-    const signature = JSON.stringify(cards);
-    if (signature === this._signature) {
-      this._updateCards();
-      return;
-    }
-    this._signature = signature;
-    await this._createLovelaceCards(cards);
-  }
-
-  async _createLovelaceCards(cards) {
-    const renderToken = Symbol("pool-tracker-render");
-    this._renderToken = renderToken;
-    this.shadowRoot.innerHTML = `
-      <style>
-        :host {
-          display: block;
-          padding: 16px;
-        }
-        .pool-tracker-panel {
-          display: grid;
-          gap: 16px;
-          margin: 0 auto;
-          max-width: 1120px;
-        }
-        .empty {
-          color: var(--secondary-text-color);
-          padding: 24px 16px;
-          text-align: center;
-        }
-        .pool-card-error {
-          color: var(--primary-text-color);
-          padding: 16px;
-        }
-      </style>
-      <div class="pool-tracker-panel"></div>
-    `;
-    try {
-      const helpers = await lovelaceCardHelpers();
-      if (this._renderToken !== renderToken) {
-        return;
-      }
-      const container = this.shadowRoot.querySelector(".pool-tracker-panel");
-      this._cards = cards.map((config) => createLovelaceCard(helpers, config));
-      for (const card of this._cards) {
-        card.hass = this._hass;
-        container.appendChild(card);
-      }
-    } catch (error) {
-      this._renderFallback(error);
-    }
-  }
-
-  _updateCards() {
-    for (const card of this._cards) {
-      card.hass = this._hass;
-    }
-  }
-
-  _renderFallback(error) {
-    console.warn("Pool Tracker could not load Lovelace cards.", error);
-    this._cards = [];
-    const container = this.shadowRoot.querySelector(".pool-tracker-panel");
-    container.innerHTML = `
-      <ha-card>
-        <div class="empty">
-          Home Assistant did not expose Lovelace card helpers in this panel.
-          Showing the Pool Tracker graph instead.
-        </div>
-      </ha-card>
-      <${CARD_TAG}></${CARD_TAG}>
-    `;
-    const graphCard = container.querySelector(CARD_TAG);
-    graphCard.setConfig({ title: "Pool Tracker", show_logs: false });
-    graphCard.hass = this._hass;
-    this._cards = [graphCard];
-  }
-}
-
 class PoolTrackerDashboardStrategy extends HTMLElement {
   static getCreateSuggestions() {
     return {
@@ -666,37 +563,6 @@ function poolTrackerCards(hass) {
   }
 
   return cards;
-}
-
-async function lovelaceCardHelpers() {
-  if (typeof window.loadCardHelpers !== "function") {
-    throw new Error("window.loadCardHelpers is not available");
-  }
-  const helpers = await window.loadCardHelpers();
-  if (!helpers || typeof helpers.createCardElement !== "function") {
-    throw new Error("Lovelace card helpers did not include createCardElement");
-  }
-  return helpers;
-}
-
-function createLovelaceCard(helpers, config) {
-  try {
-    return helpers.createCardElement(config);
-  } catch (error) {
-    console.warn("Pool Tracker could not create Lovelace card.", config, error);
-    return errorCardForConfig(config, error);
-  }
-}
-
-function errorCardForConfig(config, error) {
-  const card = document.createElement("ha-card");
-  card.innerHTML = `
-    <div class="pool-card-error">
-      Could not load ${escapeHtml(config.type || "Lovelace")} card:
-      ${escapeHtml(error?.message || "Unknown error")}
-    </div>
-  `;
-  return card;
 }
 
 function predictionStatesForHass(hass) {
@@ -1506,10 +1372,6 @@ function styles() {
 
 if (!customElements.get(CARD_TAG)) {
   customElements.define(CARD_TAG, PoolTrackerGraphCard);
-}
-
-if (!customElements.get(PANEL_TAG)) {
-  customElements.define(PANEL_TAG, PoolTrackerPanel);
 }
 
 if (!customElements.get(STRATEGY_TAG)) {
