@@ -76,7 +76,7 @@ class PoolTrackerGraphCard extends HTMLElement {
   setConfig(config) {
     this._config = config || {};
     this._selectedEntityId = this._config.entity;
-    this._render();
+    this._render({ preserveFormState: false });
   }
 
   set hass(hass) {
@@ -107,10 +107,12 @@ class PoolTrackerGraphCard extends HTMLElement {
     );
   }
 
-  _render() {
+  _render(options = {}) {
     if (!this.shadowRoot) {
       return;
     }
+    const { preserveFormState = true } = options;
+    const formState = preserveFormState ? this._captureFormState() : [];
 
     const states = this._predictionStates();
     if (!this._selectedEntityId && states.length) {
@@ -127,11 +129,12 @@ class PoolTrackerGraphCard extends HTMLElement {
       </ha-card>
     `;
 
+    this._restoreFormState(formState);
     for (const button of this.shadowRoot.querySelectorAll("button[data-entity]")) {
       button.addEventListener("click", () => {
         this._selectedEntityId = button.dataset.entity;
         this._message = undefined;
-        this._render();
+        this._render({ preserveFormState: false });
       });
     }
     this.shadowRoot
@@ -142,6 +145,39 @@ class PoolTrackerGraphCard extends HTMLElement {
       ?.addEventListener("submit", (event) => this._submitChemicalAddition(event));
     for (const button of this.shadowRoot.querySelectorAll("button[data-quick-chemical]")) {
       button.addEventListener("click", () => this._repeatChemicalAddition(button));
+    }
+  }
+
+  _captureFormState() {
+    return Array.from(this.shadowRoot.querySelectorAll("form[data-log]")).map(
+      (form) => ({
+        log: form.dataset.log,
+        values: Array.from(form.elements)
+          .filter(
+            (element) =>
+              element.name &&
+              element.type !== "hidden" &&
+              element.type !== "submit",
+          )
+          .map((element) => [element.name, element.value]),
+      }),
+    );
+  }
+
+  _restoreFormState(formState) {
+    for (const savedForm of formState) {
+      const form = this.shadowRoot.querySelector(
+        `form[data-log='${savedForm.log}']`,
+      );
+      if (!form) {
+        continue;
+      }
+      for (const [name, value] of savedForm.values) {
+        const field = form.elements[name];
+        if (field && field.type !== "hidden") {
+          field.value = value;
+        }
+      }
     }
   }
 
@@ -427,16 +463,17 @@ class PoolTrackerPanel extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    this._render();
+    this._ensureCard();
+    this._card.hass = hass;
   }
 
   set panel(panel) {
     this._panel = panel;
-    this._render();
+    this._ensureCard();
   }
 
-  _render() {
-    if (!this.shadowRoot || !this._hass) {
+  _ensureCard() {
+    if (!this.shadowRoot || this._card) {
       return;
     }
     this.shadowRoot.innerHTML = `
@@ -449,9 +486,11 @@ class PoolTrackerPanel extends HTMLElement {
       </style>
       <${CARD_TAG}></${CARD_TAG}>
     `;
-    const card = this.shadowRoot.querySelector(CARD_TAG);
-    card.setConfig({ title: "Pool Tracker" });
-    card.hass = this._hass;
+    this._card = this.shadowRoot.querySelector(CARD_TAG);
+    this._card.setConfig({ title: "Pool Tracker" });
+    if (this._hass) {
+      this._card.hass = this._hass;
+    }
   }
 }
 

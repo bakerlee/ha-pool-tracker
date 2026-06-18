@@ -72,3 +72,31 @@ def test_frontend_module_registers_panel_and_lovelace_card() -> None:
     assert "data-quick-chemical" in module
     assert 'callService("pool_tracker", service, payload)' in module
     assert "window.customCards.push" in module
+
+
+def test_frontend_preserves_forms_between_home_assistant_updates() -> None:
+    """Home Assistant state pushes should not wipe in-progress log forms."""
+    module = Path(
+        "custom_components/pool_tracker/frontend/pool-tracker-frontend.js"
+    ).read_text()
+
+    assert (
+        "const formState = preserveFormState ? this._captureFormState() : []" in module
+    )
+    assert "this._restoreFormState(formState)" in module
+    assert "_captureFormState()" in module
+    assert "_restoreFormState(formState)" in module
+    assert 'element.type !== "hidden"' in module
+    assert "this._render({ preserveFormState: false })" in module
+
+
+def test_frontend_panel_reuses_card_between_home_assistant_updates() -> None:
+    """The sidebar panel should keep its card instance across state pushes."""
+    module = Path(
+        "custom_components/pool_tracker/frontend/pool-tracker-frontend.js"
+    ).read_text()
+
+    assert "this._ensureCard()" in module
+    assert "if (!this.shadowRoot || this._card)" in module
+    assert "this._card.hass = hass" in module
+    assert "this._card = this.shadowRoot.querySelector(CARD_TAG)" in module
