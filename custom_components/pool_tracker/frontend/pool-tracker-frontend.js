@@ -523,12 +523,12 @@ function poolTrackerCards(hass) {
     cards.push({
       type: "grid",
       title: "Predictions now",
-      columns: Math.min(4, predictionStates.length),
+      columns: Math.min(2, predictionStates.length),
       square: false,
       cards: predictionStates.map((state) => ({
         type: "tile",
         entity: state.entity_id,
-        name: cleanTitle(state),
+        name: readingTitle(state),
       })),
     });
   }
@@ -952,6 +952,15 @@ function cleanTitle(state) {
   return stateTitle(state).replace(" (Predicted)", "");
 }
 
+function readingTitle(state) {
+  const title = cleanTitle(state);
+  const poolName = state?.attributes?.pool_name;
+  if (poolName && title.startsWith(`${poolName} `)) {
+    return title.slice(poolName.length + 1);
+  }
+  return title;
+}
+
 function readingsSummary(states) {
   if (states.length === 1) {
     return cleanTitle(states[0]);
@@ -1012,6 +1021,7 @@ function styles() {
       --pool-tracker-chart-height: 260px;
     }
     ha-card {
+      container: pool-tracker-card / inline-size;
       display: block;
       padding: 0;
       overflow: hidden;
@@ -1069,21 +1079,28 @@ function styles() {
     .reading-header {
       align-items: flex-start;
       display: flex;
+      flex-wrap: wrap;
       gap: 16px;
       justify-content: space-between;
       padding: 0 16px 4px;
+    }
+    .reading-header > div:first-child {
+      flex: 1 1 180px;
+      min-width: 0;
     }
     .reading-title {
       color: ${COLORS.text};
       font-size: var(--pool-tracker-primary-font-size);
       font-weight: var(--ha-font-weight-medium, 500);
       line-height: 20px;
+      overflow-wrap: anywhere;
     }
     .reading-subtitle {
       color: ${COLORS.secondary};
       font-size: var(--pool-tracker-secondary-font-size);
       line-height: 18px;
       margin-top: 2px;
+      overflow-wrap: anywhere;
     }
     button {
       appearance: none;
@@ -1334,7 +1351,7 @@ function styles() {
         text-align: left;
       }
     }
-    @media (min-width: 720px) {
+    @container pool-tracker-card (min-width: 720px) {
       .chart-list {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -1346,9 +1363,9 @@ function styles() {
         border-left: 1px solid ${COLORS.grid};
       }
     }
-    @media (min-width: 1024px) {
-      :host {
-        --pool-tracker-chart-height: 220px;
+    @container pool-tracker-card (min-width: 1280px) {
+      .chart {
+        height: 220px;
       }
       .chart-list {
         grid-template-columns: repeat(4, minmax(0, 1fr));

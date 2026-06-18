@@ -104,6 +104,9 @@ def test_frontend_card_renders_all_prediction_charts_responsively() -> None:
     assert '<div class="chart-list">' in module
     assert 'states.map((state) => this._renderReading(state)).join("")' in module
     assert "readingsSummary(states)" in module
+    assert "container: pool-tracker-card / inline-size" in module
+    assert "@container pool-tracker-card (min-width: 720px)" in module
+    assert "@container pool-tracker-card (min-width: 1280px)" in module
     assert "grid-template-columns: repeat(4, minmax(0, 1fr))" in module
     assert 'role="tab"' not in module
     assert "data-entity" not in module
@@ -137,6 +140,8 @@ def test_frontend_strategy_uses_standard_lovelace_cards() -> None:
     assert 'type: "entities"' in module
     assert 'type: "markdown"' in module
     assert 'type: "button"' in module
+    assert "columns: Math.min(2, predictionStates.length)" in module
+    assert "name: readingTitle(state)" in module
     assert "show_logs: false" in module
 
 
