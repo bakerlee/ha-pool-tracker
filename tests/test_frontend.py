@@ -121,6 +121,9 @@ def test_frontend_panel_reuses_card_between_home_assistant_updates() -> None:
 
     assert "window.loadCardHelpers()" in module
     assert "helpers.createCardElement(config)" in module
+    assert "lovelaceCardHelpers()" in module
+    assert "_renderFallback(error)" in module
+    assert "window.loadCardHelpers is not available" in module
     assert "_updateCards()" in module
     assert 'type: "tile"' in module
     assert 'type: "entities"' in module

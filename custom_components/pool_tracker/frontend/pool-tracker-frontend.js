@@ -528,27 +528,26 @@ class PoolTrackerPanel extends HTMLElement {
           padding: 24px 16px;
           text-align: center;
         }
+        .pool-card-error {
+          color: var(--primary-text-color);
+          padding: 16px;
+        }
       </style>
       <div class="pool-tracker-panel"></div>
     `;
     try {
-      const helpers = await window.loadCardHelpers();
+      const helpers = await lovelaceCardHelpers();
       if (this._renderToken !== renderToken) {
         return;
       }
       const container = this.shadowRoot.querySelector(".pool-tracker-panel");
-      this._cards = cards.map((config) => helpers.createCardElement(config));
+      this._cards = cards.map((config) => createLovelaceCard(helpers, config));
       for (const card of this._cards) {
         card.hass = this._hass;
         container.appendChild(card);
       }
     } catch (error) {
-      this._cards = [];
-      this.shadowRoot.querySelector(".pool-tracker-panel").innerHTML = `
-        <ha-card>
-          <div class="empty">Unable to load Lovelace cards.</div>
-        </ha-card>
-      `;
+      this._renderFallback(error);
     }
   }
 
@@ -556,6 +555,25 @@ class PoolTrackerPanel extends HTMLElement {
     for (const card of this._cards) {
       card.hass = this._hass;
     }
+  }
+
+  _renderFallback(error) {
+    console.warn("Pool Tracker could not load Lovelace cards.", error);
+    this._cards = [];
+    const container = this.shadowRoot.querySelector(".pool-tracker-panel");
+    container.innerHTML = `
+      <ha-card>
+        <div class="empty">
+          Home Assistant did not expose Lovelace card helpers in this panel.
+          Showing the Pool Tracker graph instead.
+        </div>
+      </ha-card>
+      <${CARD_TAG}></${CARD_TAG}>
+    `;
+    const graphCard = container.querySelector(CARD_TAG);
+    graphCard.setConfig({ title: "Pool Tracker", show_logs: false });
+    graphCard.hass = this._hass;
+    this._cards = [graphCard];
   }
 }
 
@@ -648,6 +666,37 @@ function poolTrackerCards(hass) {
   }
 
   return cards;
+}
+
+async function lovelaceCardHelpers() {
+  if (typeof window.loadCardHelpers !== "function") {
+    throw new Error("window.loadCardHelpers is not available");
+  }
+  const helpers = await window.loadCardHelpers();
+  if (!helpers || typeof helpers.createCardElement !== "function") {
+    throw new Error("Lovelace card helpers did not include createCardElement");
+  }
+  return helpers;
+}
+
+function createLovelaceCard(helpers, config) {
+  try {
+    return helpers.createCardElement(config);
+  } catch (error) {
+    console.warn("Pool Tracker could not create Lovelace card.", config, error);
+    return errorCardForConfig(config, error);
+  }
+}
+
+function errorCardForConfig(config, error) {
+  const card = document.createElement("ha-card");
+  card.innerHTML = `
+    <div class="pool-card-error">
+      Could not load ${escapeHtml(config.type || "Lovelace")} card:
+      ${escapeHtml(error?.message || "Unknown error")}
+    </div>
+  `;
+  return card;
 }
 
 function predictionStatesForHass(hass) {
