@@ -41,3 +41,4 @@ Recent commits use concise imperative subjects, for example `Enhance pool tracke
 ## Agent-Specific Instructions
 
 This is a brand-new integration; do not add migration or legacy compatibility paths unless explicitly requested. Keep dashboard controls service-backed, avoid helper/template storage glue, and treat logged chemical additions as records rather than proof of physical dosing.
+Always commit your completed changes. If the worktree contains unrelated edits, stage and commit only the files you changed for the current task.
