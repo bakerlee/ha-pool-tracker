@@ -101,7 +101,7 @@ For chemical additions, Pool Tracker uses configured volume when available. If v
 
 Pool Tracker includes a bundled frontend module at `/pool_tracker_static/pool-tracker-frontend.js`.
 
-When Home Assistant frontend support is available, the integration registers a `Pool Tracker` sidebar panel automatically. The panel discovers Pool Tracker prediction sensors and shows the predicted value line, uncertainty bounds, actual water tests, and chemical additions without hand-written Lovelace YAML or a third-party chart card.
+When Home Assistant frontend support is available, the integration registers a `Pool Tracker` sidebar panel automatically. The panel discovers Pool Tracker prediction sensors and shows all prediction charts at once, including the predicted value line, uncertainty bounds, actual water tests, and chemical additions without hand-written Lovelace YAML or a third-party chart card. The chart layout is responsive: narrow screens stack readings, wider dashboards show multiple readings per row, and laptop-size layouts can show the default four readings in one row.
 
 The same module also registers a Lovelace custom card for existing dashboards:
 
@@ -109,7 +109,7 @@ The same module also registers a Lovelace custom card for existing dashboards:
 type: custom:pool-tracker-graph-card
 ```
 
-By default, the card discovers all Pool Tracker prediction sensors and lets the user switch between readings. To pin one reading, set `entity`:
+By default, the card discovers all Pool Tracker prediction sensors and renders them together. To pin one reading, set `entity`:
 
 ```yaml
 type: custom:pool-tracker-graph-card

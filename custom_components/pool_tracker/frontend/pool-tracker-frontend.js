@@ -1,13 +1,6 @@
 const CARD_TAG = "pool-tracker-graph-card";
 const PANEL_TAG = "pool-tracker-panel";
 
-const READING_LABELS = {
-  free_chlorine: "Free chlorine",
-  ph: "pH",
-  total_alkalinity: "Total alkalinity",
-  cya: "CYA/stabilizer",
-};
-
 const WATER_READING_FIELDS = [
   { key: "free_chlorine", label: "Free chlorine", unit: "ppm", step: "0.1" },
   { key: "ph", label: "pH", unit: "", step: "0.1", max: "14" },
@@ -130,13 +123,6 @@ class PoolTrackerGraphCard extends HTMLElement {
     `;
 
     this._restoreFormState(formState);
-    for (const button of this.shadowRoot.querySelectorAll("button[data-entity]")) {
-      button.addEventListener("click", () => {
-        this._selectedEntityId = button.dataset.entity;
-        this._message = undefined;
-        this._render({ preserveFormState: false });
-      });
-    }
     this.shadowRoot
       .querySelector("form[data-log='water-test']")
       ?.addEventListener("submit", (event) => this._submitWaterTest(event));
@@ -193,75 +179,40 @@ class PoolTrackerGraphCard extends HTMLElement {
       <div class="header">
         <div>
           <div class="title">${escapeHtml(this._config.title || "Pool Tracker")}</div>
-          <div class="subtitle">${escapeHtml(cleanTitle(selected))}</div>
-        </div>
-        <div class="state-block">
-          <div class="current">${escapeHtml(stateValue(selected))}</div>
-          <div class="state-label">Predicted now</div>
+          <div class="subtitle">${escapeHtml(readingsSummary(states))}</div>
         </div>
       </div>
-      ${states.length > 1 ? this._renderTabs(states, selected) : ""}
-      ${renderChart(selected)}
-      ${renderMeta(selected)}
+      <div class="chart-list">
+        ${states.map((state) => this._renderReading(state)).join("")}
+      </div>
       ${this._renderLogTools(selected)}
     `;
   }
 
-  _renderTabs(states, selected) {
+  _renderReading(state) {
     return `
-      <div class="tabs" role="tablist">
-        ${states
-          .map(
-            (state) => `
-              <button
-                type="button"
-                role="tab"
-                aria-selected="${state.entity_id === selected.entity_id}"
-                data-entity="${escapeHtml(state.entity_id)}"
-                class="${state.entity_id === selected.entity_id ? "selected" : ""}"
-              >
-                ${escapeHtml(shortTitle(state))}
-              </button>
-            `,
-          )
-          .join("")}
-      </div>
+      <section class="reading-chart">
+        <div class="reading-header">
+          <div>
+            <div class="reading-title">${escapeHtml(cleanTitle(state))}</div>
+            <div class="reading-subtitle">${escapeHtml(state.entity_id)}</div>
+          </div>
+          <div class="state-block">
+            <div class="current">${escapeHtml(stateValue(state))}</div>
+            <div class="state-label">Predicted now</div>
+          </div>
+        </div>
+        ${renderChart(state)}
+        ${renderMeta(state)}
+      </section>
     `;
   }
 
   _renderLogTools(selected) {
     const attrs = selected.attributes || {};
-    const quickAdds = attrs.quick_chemical_additions || [];
     return `
       <div class="log-tools">
         ${this._message ? `<div class="message ${escapeHtml(this._message.type)}">${escapeHtml(this._message.text)}</div>` : ""}
-        <div class="quick-panel">
-          <div class="section-title">Quick chemicals</div>
-          <div class="quick-actions">
-            ${
-              quickAdds.length
-                ? quickAdds
-                    .map(
-                      (action) => `
-                        <button
-                          type="button"
-                          class="quick-button"
-                          data-quick-chemical
-                          data-chemical="${escapeHtml(action.chemical || "")}"
-                          data-amount="${escapeHtml(action.amount || "")}"
-                          data-unit="${escapeHtml(action.unit || "")}"
-                          ${this._pending ? "disabled" : ""}
-                        >
-                          <ha-icon icon="mdi:repeat"></ha-icon>
-                          <span>${escapeHtml(action.summary || chemicalSummary(action))}</span>
-                        </button>
-                      `,
-                    )
-                    .join("")
-                : `<span class="muted">Log a chemical addition to create a repeat.</span>`
-            }
-          </div>
-        </div>
         <div class="forms">
           ${this._renderWaterTestForm(attrs)}
           ${this._renderChemicalForm(attrs)}
@@ -331,6 +282,7 @@ class PoolTrackerGraphCard extends HTMLElement {
     return `
       <form class="log-form" data-log="chemical-addition">
         <div class="section-title">Log chemical</div>
+        ${this._renderQuickChemicalActions(attrs.quick_chemical_additions || [])}
         ${poolHiddenInput(attrs)}
         <div class="field-grid chemical-fields">
           <label>
@@ -369,6 +321,34 @@ class PoolTrackerGraphCard extends HTMLElement {
           <span>Log chemical</span>
         </button>
       </form>
+    `;
+  }
+
+  _renderQuickChemicalActions(quickAdds) {
+    if (!quickAdds.length) {
+      return "";
+    }
+    return `
+      <div class="quick-actions">
+        ${quickAdds
+          .map(
+            (action) => `
+              <button
+                type="button"
+                class="quick-button"
+                data-quick-chemical
+                data-chemical="${escapeHtml(action.chemical || "")}"
+                data-amount="${escapeHtml(action.amount || "")}"
+                data-unit="${escapeHtml(action.unit || "")}"
+                ${this._pending ? "disabled" : ""}
+              >
+                <ha-icon icon="mdi:repeat"></ha-icon>
+                <span>${escapeHtml(action.summary || chemicalSummary(action))}</span>
+              </button>
+            `,
+          )
+          .join("")}
+      </div>
     `;
   }
 
@@ -762,10 +742,11 @@ function cleanTitle(state) {
   return stateTitle(state).replace(" (Predicted)", "");
 }
 
-function shortTitle(state) {
-  const entityId = state?.entity_id || "";
-  const reading = Object.keys(READING_LABELS).find((key) => entityId.includes(key));
-  return reading ? READING_LABELS[reading] : cleanTitle(state);
+function readingsSummary(states) {
+  if (states.length === 1) {
+    return cleanTitle(states[0]);
+  }
+  return `${states.length} readings`;
 }
 
 function stateValue(state) {
@@ -861,21 +842,43 @@ function styles() {
       margin-top: 4px;
       white-space: nowrap;
     }
-    .tabs {
-      display: flex;
-      gap: 18px;
-      margin: 0 16px 4px;
-      overflow-x: auto;
-      scrollbar-width: none;
+    .chart-list {
+      display: grid;
+      gap: 0;
+      grid-template-columns: 1fr;
     }
-    .tabs::-webkit-scrollbar {
-      display: none;
+    .reading-chart {
+      border-top: 1px solid ${COLORS.grid};
+      min-width: 0;
+      padding-top: 14px;
+    }
+    .reading-chart:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+    .reading-header {
+      align-items: flex-start;
+      display: flex;
+      gap: 16px;
+      justify-content: space-between;
+      padding: 0 16px 4px;
+    }
+    .reading-title {
+      color: ${COLORS.text};
+      font-size: var(--pool-tracker-primary-font-size);
+      font-weight: var(--ha-font-weight-medium, 500);
+      line-height: 20px;
+    }
+    .reading-subtitle {
+      color: ${COLORS.secondary};
+      font-size: var(--pool-tracker-secondary-font-size);
+      line-height: 18px;
+      margin-top: 2px;
     }
     button {
       appearance: none;
       background: transparent;
       border: 0;
-      border-bottom: 2px solid transparent;
       color: ${COLORS.secondary};
       cursor: pointer;
       font: inherit;
@@ -883,11 +886,6 @@ function styles() {
       min-height: 40px;
       padding: 0;
       white-space: nowrap;
-    }
-    button.selected {
-      color: ${COLORS.prediction};
-      border-bottom-color: ${COLORS.prediction};
-      font-weight: var(--ha-font-weight-medium, 500);
     }
     .chart {
       display: block;
@@ -972,13 +970,11 @@ function styles() {
       line-height: 20px;
       margin-bottom: 10px;
     }
-    .quick-panel {
-      margin-bottom: 16px;
-    }
     .quick-actions {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
+      margin-bottom: 2px;
     }
     .quick-button,
     .primary {
@@ -1121,8 +1117,44 @@ function styles() {
       .header {
         flex-direction: column;
       }
+      .reading-header {
+        flex-direction: column;
+      }
       .state-block {
         text-align: left;
+      }
+    }
+    @media (min-width: 720px) {
+      .chart-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .reading-chart:nth-child(-n + 2) {
+        border-top: 0;
+        padding-top: 0;
+      }
+      .reading-chart:nth-child(2n) {
+        border-left: 1px solid ${COLORS.grid};
+      }
+    }
+    @media (min-width: 1024px) {
+      :host {
+        --pool-tracker-chart-height: 220px;
+      }
+      .chart-list {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .reading-chart {
+        border-left: 0;
+        border-top: 0;
+      }
+      .reading-chart:nth-child(-n + 4) {
+        padding-top: 0;
+      }
+      .reading-chart:nth-child(n + 5) {
+        border-top: 1px solid ${COLORS.grid};
+      }
+      .reading-chart:not(:nth-child(4n + 1)) {
+        border-left: 1px solid ${COLORS.grid};
       }
     }
   `;
