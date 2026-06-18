@@ -1,5 +1,7 @@
 const CARD_TAG = "pool-tracker-graph-card";
 const PANEL_TAG = "pool-tracker-panel";
+const STRATEGY_TAG = "ll-strategy-dashboard-pool-tracker";
+const STRATEGY_TYPE = "pool-tracker";
 
 const WATER_READING_FIELDS = [
   { key: "free_chlorine", label: "Free chlorine", unit: "ppm", step: "0.1" },
@@ -90,6 +92,13 @@ class PoolTrackerGraphCard extends HTMLElement {
 
   getCardSize() {
     return 5;
+  }
+
+  getGridOptions() {
+    return {
+      columns: "full",
+      min_columns: 6,
+    };
   }
 
   _predictionStates() {
@@ -210,7 +219,7 @@ class PoolTrackerGraphCard extends HTMLElement {
             : `<div class="empty">No prediction charts for enabled metrics.</div>`
         }
       </div>
-      ${this._renderLogTools(logState)}
+      ${this._config.show_logs === false ? "" : this._renderLogTools(logState)}
     `;
   }
 
@@ -470,39 +479,274 @@ class PoolTrackerPanel extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this._cards = [];
+    this._signature = undefined;
+    this._renderToken = undefined;
   }
 
   set hass(hass) {
     this._hass = hass;
-    this._ensureCard();
-    this._card.hass = hass;
+    this._renderLovelace();
   }
 
   set panel(panel) {
     this._panel = panel;
-    this._ensureCard();
+    this._renderLovelace();
   }
 
-  _ensureCard() {
-    if (!this.shadowRoot || this._card) {
+  async _renderLovelace() {
+    if (!this.shadowRoot || !this._hass) {
       return;
     }
+    const cards = poolTrackerCards(this._hass);
+    const signature = JSON.stringify(cards);
+    if (signature === this._signature) {
+      this._updateCards();
+      return;
+    }
+    this._signature = signature;
+    await this._createLovelaceCards(cards);
+  }
+
+  async _createLovelaceCards(cards) {
+    const renderToken = Symbol("pool-tracker-render");
+    this._renderToken = renderToken;
     this.shadowRoot.innerHTML = `
       <style>
         :host {
           display: block;
           padding: 16px;
         }
-        ${styles()}
+        .pool-tracker-panel {
+          display: grid;
+          gap: 16px;
+          margin: 0 auto;
+          max-width: 1120px;
+        }
+        .empty {
+          color: var(--secondary-text-color);
+          padding: 24px 16px;
+          text-align: center;
+        }
       </style>
-      <${CARD_TAG}></${CARD_TAG}>
+      <div class="pool-tracker-panel"></div>
     `;
-    this._card = this.shadowRoot.querySelector(CARD_TAG);
-    this._card.setConfig({ title: "Pool Tracker" });
-    if (this._hass) {
-      this._card.hass = this._hass;
+    try {
+      const helpers = await window.loadCardHelpers();
+      if (this._renderToken !== renderToken) {
+        return;
+      }
+      const container = this.shadowRoot.querySelector(".pool-tracker-panel");
+      this._cards = cards.map((config) => helpers.createCardElement(config));
+      for (const card of this._cards) {
+        card.hass = this._hass;
+        container.appendChild(card);
+      }
+    } catch (error) {
+      this._cards = [];
+      this.shadowRoot.querySelector(".pool-tracker-panel").innerHTML = `
+        <ha-card>
+          <div class="empty">Unable to load Lovelace cards.</div>
+        </ha-card>
+      `;
     }
   }
+
+  _updateCards() {
+    for (const card of this._cards) {
+      card.hass = this._hass;
+    }
+  }
+}
+
+class PoolTrackerDashboardStrategy extends HTMLElement {
+  static getCreateSuggestions() {
+    return {
+      title: "Pool Tracker",
+      icon: "mdi:pool",
+    };
+  }
+
+  static async generate(config, hass) {
+    return {
+      title: config?.title || "Pool Tracker",
+      views: [
+        {
+          title: "Pool Tracker",
+          path: "pool-tracker",
+          cards: poolTrackerCards(hass),
+        },
+      ],
+    };
+  }
+}
+
+function poolTrackerCards(hass) {
+  const predictionStates = predictionStatesForHass(hass);
+  const logStates = poolLogStatesForHass(hass);
+  const latestReadingStates = logStates.filter((state) => !isPredictionState(state));
+  const selectedLogState = predictionStates[0] || logStates[0];
+  const cards = [];
+
+  if (!predictionStates.length && !latestReadingStates.length) {
+    return [
+      {
+        type: "markdown",
+        content: "No Pool Tracker sensors yet.",
+      },
+    ];
+  }
+
+  cards.push({
+    type: `custom:${CARD_TAG}`,
+    title: "Prediction charts",
+    entities: predictionStates.map((state) => state.entity_id),
+    show_logs: false,
+  });
+
+  if (predictionStates.length) {
+    cards.push({
+      type: "grid",
+      title: "Predictions now",
+      columns: Math.min(4, predictionStates.length),
+      square: false,
+      cards: predictionStates.map((state) => ({
+        type: "tile",
+        entity: state.entity_id,
+        name: cleanTitle(state),
+      })),
+    });
+  }
+
+  if (latestReadingStates.length) {
+    cards.push({
+      type: "entities",
+      title: "Latest readings",
+      show_header_toggle: false,
+      entities: latestReadingStates.map((state) => state.entity_id),
+    });
+  }
+
+  const recentRecords = recentRecordsMarkdown(selectedLogState);
+  if (recentRecords) {
+    cards.push({
+      type: "markdown",
+      title: "Recent records",
+      content: recentRecords,
+    });
+  }
+
+  const quickCards = quickChemicalCards(selectedLogState);
+  if (quickCards.length) {
+    cards.push({
+      type: "grid",
+      title: "Repeat chemical additions",
+      columns: Math.min(2, quickCards.length),
+      square: false,
+      cards: quickCards,
+    });
+  }
+
+  return cards;
+}
+
+function predictionStatesForHass(hass) {
+  if (!hass) {
+    return [];
+  }
+  return Object.values(hass.states)
+    .filter((state) => isPredictionState(state))
+    .sort((left, right) => stateTitle(left).localeCompare(stateTitle(right)));
+}
+
+function poolLogStatesForHass(hass) {
+  if (!hass) {
+    return [];
+  }
+  return Object.values(hass.states)
+    .filter((state) => isPoolLogState(state))
+    .sort((left, right) => stateTitle(left).localeCompare(stateTitle(right)));
+}
+
+function quickChemicalCards(state) {
+  const attrs = state?.attributes || {};
+  return (attrs.quick_chemical_additions || []).map((action) => ({
+    type: "button",
+    name: action.summary || chemicalSummary(action),
+    icon: "mdi:repeat",
+    tap_action: {
+      action: "call-service",
+      service: "pool_tracker.log_chemical_addition",
+      data: compactObject({
+        pool_id: attrs.pool_id,
+        source: "dashboard",
+        chemical: action.chemical,
+        amount: Number.isFinite(Number(action.amount))
+          ? Number(action.amount)
+          : action.amount,
+        unit: action.unit,
+      }),
+    },
+  }));
+}
+
+function recentRecordsMarkdown(state) {
+  const attrs = state?.attributes || {};
+  const waterTests = attrs.recent_water_tests || [];
+  const chemicalAdditions = attrs.recent_chemical_additions || [];
+  const sections = [];
+  if (waterTests.length) {
+    sections.push(
+      ["### Water tests", ...waterTests.map((record) => `- ${waterTestLine(record)}`)]
+        .join("\n"),
+    );
+  }
+  if (chemicalAdditions.length) {
+    sections.push(
+      [
+        "### Chemical additions",
+        ...chemicalAdditions.map((record) => `- ${chemicalLine(record)}`),
+      ].join("\n"),
+    );
+  }
+  return sections.join("\n\n");
+}
+
+function waterTestLine(record) {
+  const readings = Object.entries(record.readings || {})
+    .map(([reading, value]) => `${labelFor(reading)} ${formatNumber(value)}`)
+    .join(", ");
+  return [dateLabel(record.event_timestamp), readings || "Test logged"]
+    .filter(Boolean)
+    .join(": ");
+}
+
+function chemicalLine(record) {
+  return [dateLabel(record.event_timestamp), record.summary || chemicalSummary(record)]
+    .filter(Boolean)
+    .join(": ");
+}
+
+function dateLabel(timestamp) {
+  if (!timestamp) {
+    return "";
+  }
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return String(timestamp);
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function compactObject(value) {
+  return Object.fromEntries(
+    Object.entries(value).filter((entry) => entry[1] !== undefined && entry[1] !== ""),
+  );
 }
 
 function poolHiddenInput(attrs) {
@@ -1219,9 +1463,21 @@ if (!customElements.get(PANEL_TAG)) {
   customElements.define(PANEL_TAG, PoolTrackerPanel);
 }
 
+if (!customElements.get(STRATEGY_TAG)) {
+  customElements.define(STRATEGY_TAG, PoolTrackerDashboardStrategy);
+}
+
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: CARD_TAG,
   name: "Pool Tracker Graph",
   description: "Shows Pool Tracker predictions, uncertainty, tests, and chemicals.",
+});
+
+window.customStrategies = window.customStrategies || [];
+window.customStrategies.push({
+  type: STRATEGY_TYPE,
+  strategyType: "dashboard",
+  name: "Pool Tracker",
+  description: "Builds a Pool Tracker dashboard from standard Lovelace cards.",
 });

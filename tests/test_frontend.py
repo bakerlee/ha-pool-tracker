@@ -59,15 +59,17 @@ async def test_frontend_setup_registers_static_assets_panel_and_card_module(
 
 
 def test_frontend_module_registers_panel_and_lovelace_card() -> None:
-    """The shipped JS module contains both the panel and custom card elements."""
+    """The shipped JS module contains the panel, strategy, and graph card."""
     module = Path(
         "custom_components/pool_tracker/frontend/pool-tracker-frontend.js"
     ).read_text()
 
     assert 'const CARD_TAG = "pool-tracker-graph-card"' in module
     assert 'const PANEL_TAG = "pool-tracker-panel"' in module
+    assert 'const STRATEGY_TAG = "ll-strategy-dashboard-pool-tracker"' in module
     assert "customElements.define(CARD_TAG, PoolTrackerGraphCard)" in module
     assert "customElements.define(PANEL_TAG, PoolTrackerPanel)" in module
+    assert "customElements.define(STRATEGY_TAG, PoolTrackerDashboardStrategy)" in module
     assert 'data-log="water-test"' in module
     assert 'data-log="chemical-addition"' in module
     assert "data-quick-chemical" in module
@@ -78,6 +80,7 @@ def test_frontend_module_registers_panel_and_lovelace_card() -> None:
     assert "No prediction charts for enabled metrics." in module
     assert 'callService("pool_tracker", service, payload)' in module
     assert "window.customCards.push" in module
+    assert "window.customStrategies.push" in module
 
 
 def test_frontend_card_renders_all_prediction_charts_responsively() -> None:
@@ -111,12 +114,31 @@ def test_frontend_preserves_forms_between_home_assistant_updates() -> None:
 
 
 def test_frontend_panel_reuses_card_between_home_assistant_updates() -> None:
-    """The sidebar panel should keep its card instance across state pushes."""
+    """The sidebar panel should render standard Lovelace cards."""
     module = Path(
         "custom_components/pool_tracker/frontend/pool-tracker-frontend.js"
     ).read_text()
 
-    assert "this._ensureCard()" in module
-    assert "if (!this.shadowRoot || this._card)" in module
-    assert "this._card.hass = hass" in module
-    assert "this._card = this.shadowRoot.querySelector(CARD_TAG)" in module
+    assert "window.loadCardHelpers()" in module
+    assert "helpers.createCardElement(config)" in module
+    assert "_updateCards()" in module
+    assert 'type: "tile"' in module
+    assert 'type: "entities"' in module
+    assert 'type: "markdown"' in module
+    assert 'type: "button"' in module
+    assert "show_logs: false" in module
+
+
+def test_frontend_dashboard_strategy_uses_standard_lovelace_cards() -> None:
+    """The Pool Tracker strategy should generate a Lovelace dashboard."""
+    module = Path(
+        "custom_components/pool_tracker/frontend/pool-tracker-frontend.js"
+    ).read_text()
+
+    assert "class PoolTrackerDashboardStrategy extends HTMLElement" in module
+    assert "static async generate(config, hass)" in module
+    assert "cards: poolTrackerCards(hass)" in module
+    assert 'strategyType: "dashboard"' in module
+    assert "type: STRATEGY_TYPE" in module
+    assert 'service: "pool_tracker.log_chemical_addition"' in module
+    assert 'source: "dashboard"' in module

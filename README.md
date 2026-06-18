@@ -114,7 +114,19 @@ Pool Tracker includes a bundled frontend module at `/pool_tracker_static/pool-tr
 
 When Home Assistant frontend support is available, the integration registers a `Pool Tracker` sidebar panel automatically. The panel discovers Pool Tracker prediction sensors and shows all prediction charts at once, including the predicted value line, uncertainty bounds, actual water tests, and chemical additions without hand-written Lovelace YAML or a third-party chart card. The chart layout is responsive: narrow screens stack readings, wider dashboards show multiple readings per row, and laptop-size layouts can show the default four readings in one row.
 
-The same module also registers a Lovelace custom card for existing dashboards:
+The sidebar panel is assembled from standard Lovelace cards for summaries, latest
+readings, recent records, and repeat-chemical actions. Pool Tracker only uses a
+custom card for the prediction chart that Lovelace does not provide natively.
+
+The same module registers a Lovelace dashboard strategy for regular dashboards:
+
+```yaml
+strategy:
+  type: custom:pool-tracker
+```
+
+It also registers the graph card for dashboards that need only the prediction
+chart:
 
 ```yaml
 type: custom:pool-tracker-graph-card
@@ -125,6 +137,13 @@ By default, the card discovers all Pool Tracker prediction sensors and renders t
 ```yaml
 type: custom:pool-tracker-graph-card
 entity: sensor.pool_free_chlorine_predicted
+```
+
+To use the graph without the bundled logging controls, set `show_logs: false`:
+
+```yaml
+type: custom:pool-tracker-graph-card
+show_logs: false
 ```
 
 ## Service Actions
@@ -211,9 +230,11 @@ data:
   source: agent
 ```
 
-## Temporary Dashboard Actions
+## Dashboard Actions
 
-The graph UI is bundled with the integration. V1 data entry is still backend-first, so use Home Assistant service/action cards as temporary manual controls.
+Data entry stays backend-first through Home Assistant services. Use standard
+Lovelace button/action cards for fixed or repeat actions instead of helper-backed
+input fields, scripts, template sensors, or automations as storage glue.
 
 Example Lovelace manual water-test action:
 
@@ -227,8 +248,6 @@ tap_action:
     ph: 7.2
     source: dashboard
 ```
-
-Keep dashboard controls as service calls. Do not recreate helper-backed input fields, scripts, template sensors, or automations as storage glue.
 
 ## Storage
 
