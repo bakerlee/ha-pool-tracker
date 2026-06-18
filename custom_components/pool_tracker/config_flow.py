@@ -19,6 +19,7 @@ from .const import (
     CONF_POOL_VOLUME_UNIT,
     CONF_SANITIZER_TYPE,
     CONF_SURFACE_TYPE,
+    CONF_TRACKED_METRICS,
     CONF_TYPICALLY_COVERED,
     CONF_WEATHER_ENTITY_ID,
     DEFAULT_POOL_ID,
@@ -31,7 +32,9 @@ from .const import (
     POOL_TYPES,
     POOL_VOLUME_UNITS,
     SELECT_LABELS,
+    WATER_TEST_METRICS,
     WATER_TESTING_METHODS,
+    enabled_water_test_metrics,
 )
 
 POOL_PROFILE_ENTITY_KEYS = (
@@ -61,6 +64,19 @@ def _select(options: tuple[str, ...]) -> selector.SelectSelector:
                 for option in options
             ],
             mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
+def _multi_select(options: tuple[str, ...]) -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[
+                selector.SelectOptionDict(value=option, label=SELECT_LABELS[option])
+                for option in options
+            ],
+            multiple=True,
+            mode=selector.SelectSelectorMode.LIST,
         )
     )
 
@@ -139,6 +155,10 @@ def _pool_profile_schema(
             default=defaults.get(CONF_DEFAULT_TESTING_METHOD, DEFAULT_TESTING_METHOD),
         ): _select(WATER_TESTING_METHODS),
         vol.Optional(
+            CONF_TRACKED_METRICS,
+            default=list(enabled_water_test_metrics(defaults)),
+        ): _multi_select(WATER_TEST_METRICS),
+        vol.Optional(
             CONF_TYPICALLY_COVERED,
             default=defaults.get(CONF_TYPICALLY_COVERED, False),
         ): selector.BooleanSelector(),
@@ -168,6 +188,7 @@ def build_pool_config(
         CONF_DEFAULT_TESTING_METHOD: user_input.get(
             CONF_DEFAULT_TESTING_METHOD, DEFAULT_TESTING_METHOD
         ),
+        CONF_TRACKED_METRICS: list(enabled_water_test_metrics(user_input)),
         CONF_TYPICALLY_COVERED: bool(user_input.get(CONF_TYPICALLY_COVERED, False)),
     }
     for key in (CONF_POOL_TYPE, CONF_SURFACE_TYPE, CONF_SANITIZER_TYPE):

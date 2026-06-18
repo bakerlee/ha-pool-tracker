@@ -47,6 +47,7 @@ from .const import (
     WATER_TEST_READING_PRECISION,
     WATER_TEST_READING_UNITS,
     WATER_TESTING_METHOD,
+    enabled_water_test_metrics,
 )
 from .models import PoolRecord, chemical_summary, parse_utc
 from .prediction import PredictionContext, ReadingPrediction, build_prediction
@@ -104,9 +105,9 @@ def _latest_reading_attrs(
 ) -> dict[str, Any] | None:
     latest = entity.store.latest_reading(reading, entity.pool_id)
     if latest is None:
-        return None
+        return _log_attrs(entity) | {"unit": WATER_TEST_READING_UNITS[reading]}
     record, value = latest
-    return _record_attrs(record) | {"unit": value["unit"]}
+    return _log_attrs(entity) | _record_attrs(record) | {"unit": value["unit"]}
 
 
 def _prediction_value(entity: PoolTrackerSensor, reading: str) -> Any:
@@ -163,6 +164,7 @@ def _log_attrs(entity: PoolTrackerSensor) -> dict[str, Any]:
     return {
         "pool_id": entity.pool_id,
         "pool_name": entity.pool_name,
+        "tracked_metrics": list(enabled_water_test_metrics(entity._pool_profile)),
         "recent_water_tests": list(reversed(water_tests)),
         "recent_chemical_additions": list(reversed(chemical_additions)),
         "quick_chemical_additions": _quick_chemical_additions(records),
@@ -290,6 +292,27 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
 )
 
 
+def _enabled_sensor_descriptions(
+    pool_profile: dict[str, Any],
+) -> tuple[PoolSensorDescription, ...]:
+    enabled_metrics = set(enabled_water_test_metrics(pool_profile))
+    descriptions: list[PoolSensorDescription] = []
+    for description in SENSOR_DESCRIPTIONS:
+        if description.prediction_reading:
+            if description.prediction_reading in enabled_metrics:
+                descriptions.append(description)
+            continue
+        if (
+            description.key in NUMERIC_WATER_READINGS
+            or description.key == WATER_READING_WATER_CLARITY
+        ):
+            if description.key in enabled_metrics:
+                descriptions.append(description)
+            continue
+        descriptions.append(description)
+    return tuple(descriptions)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -306,7 +329,9 @@ async def async_setup_entry(
     async_add_entities(
         PoolTrackerSensor(entry, pool_id, pool_name, description)
         for pool_id, pool_name in runtime.pools.items()
-        for description in SENSOR_DESCRIPTIONS
+        for description in _enabled_sensor_descriptions(
+            runtime.pool_profiles.get(pool_id, {})
+        )
     )
 
 

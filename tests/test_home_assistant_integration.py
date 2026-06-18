@@ -18,6 +18,7 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_POOL_NAME,
     CONF_POOL_VOLUME,
     CONF_POOL_VOLUME_UNIT,
+    CONF_TRACKED_METRICS,
     CONF_TYPICALLY_COVERED,
     CONF_WEATHER_ENTITY_ID,
     DOMAIN,
@@ -51,6 +52,10 @@ async def test_setup_unload_reload_config_entry(hass) -> None:
     assert (
         entry.runtime_data.pool_profiles["pool"][CONF_DEFAULT_TESTING_METHOD]
         == "strips"
+    )
+    assert (
+        "free_chlorine"
+        in entry.runtime_data.pool_profiles["pool"][CONF_TRACKED_METRICS]
     )
     assert entry.runtime_data.pool_profiles["pool"][CONF_TYPICALLY_COVERED] is False
     await hass.services.async_call(
@@ -87,6 +92,7 @@ async def test_setup_defaults_missing_pool_profile_fields(hass) -> None:
         entry.runtime_data.pool_profiles["pool"][CONF_DEFAULT_TESTING_METHOD]
         == "strips"
     )
+    assert entry.runtime_data.pool_profiles["pool"][CONF_TRACKED_METRICS]
 
 
 async def test_options_flow_opens_for_existing_pool(hass) -> None:
@@ -128,6 +134,34 @@ async def test_fresh_pool_chlorine_sensors_start_unknown(hass) -> None:
     assert predicted.attributes["recent_water_tests"] == []
     assert predicted.attributes["recent_chemical_additions"] == []
     assert predicted.attributes["quick_chemical_additions"] == []
+
+
+async def test_disabled_metrics_do_not_create_reading_or_prediction_sensors(
+    hass,
+) -> None:
+    """Configured metric tracking controls the pool's exposed sensor set."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id="pool",
+        data={
+            CONF_POOL_ID: "pool",
+            CONF_POOL_NAME: "Pool",
+            CONF_TRACKED_METRICS: ["salt"],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    salt = _sensor_state(hass, "salt")
+    assert salt is not None
+    assert salt.state == "unknown"
+    assert salt.attributes[CONF_TRACKED_METRICS] == ["salt"]
+    assert _sensor_state(hass, "ph") is None
+    assert _sensor_state(hass, "ph_predicted") is None
+    assert _sensor_state(hass, "free_chlorine_predicted") is None
 
 
 async def test_multiple_config_entries_share_store_and_route_by_pool_id(hass) -> None:

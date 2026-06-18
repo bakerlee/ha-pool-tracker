@@ -73,6 +73,9 @@ def test_frontend_module_registers_panel_and_lovelace_card() -> None:
     assert "data-quick-chemical" in module
     assert "_renderQuickChemicalActions(attrs.quick_chemical_additions || [])" in module
     assert "Quick chemicals" not in module
+    assert "enabledWaterReadingFields(attrs)" in module
+    assert "tracked_metrics" in module
+    assert "No prediction charts for enabled metrics." in module
     assert 'callService("pool_tracker", service, payload)' in module
     assert "window.customCards.push" in module
 

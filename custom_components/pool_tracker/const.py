@@ -20,6 +20,7 @@ CONF_DEFAULT_TESTING_METHOD = "default_testing_method"
 CONF_TYPICALLY_COVERED = "typically_covered"
 CONF_WEATHER_ENTITY_ID = "weather_entity_id"
 CONF_COVER_ENTITY_ID = "cover_entity_id"
+CONF_TRACKED_METRICS = "tracked_metrics"
 DEFAULT_POOL_ID = "pool"
 DEFAULT_POOL_NAME = "Pool"
 DEFAULT_POOL_VOLUME_UNIT = "gal"
@@ -190,6 +191,20 @@ WATER_TEST_READING_PRECISION = {
     WATER_READING_WATER_TEMPERATURE: 1,
 }
 
+WATER_TEST_METRICS = (
+    *NUMERIC_WATER_READINGS,
+    WATER_READING_WATER_CLARITY,
+)
+
+
+def enabled_water_test_metrics(pool_profile: dict) -> tuple[str, ...]:
+    """Return the water-test metrics enabled for a pool profile."""
+    configured = pool_profile.get(CONF_TRACKED_METRICS)
+    if configured is None:
+        return WATER_TEST_METRICS
+    return tuple(metric for metric in configured if metric in WATER_TEST_METRICS)
+
+
 SELECT_LABELS = {
     "dichlor": "Dichlor",
     "trichlor": "Trichlor",
@@ -232,4 +247,20 @@ SELECT_LABELS = {
     "photometer": "Photometer",
     "pool_store": "Pool store",
     "other": "Other",
+    WATER_READING_FREE_CHLORINE: "Free chlorine",
+    WATER_READING_TOTAL_CHLORINE: "Total chlorine",
+    WATER_READING_COMBINED_CHLORINE: "Combined chlorine",
+    WATER_READING_TOTAL_BROMINE: "Total bromine",
+    WATER_READING_PH: "pH",
+    WATER_READING_TOTAL_ALKALINITY: "Total alkalinity",
+    WATER_READING_CALCIUM_HARDNESS: "Calcium hardness",
+    WATER_READING_TOTAL_HARDNESS: "Total hardness",
+    WATER_READING_CYA: "CYA/stabilizer",
+    WATER_READING_SALT: "Salt",
+    WATER_READING_TOTAL_DISSOLVED_SOLIDS: "Total dissolved solids",
+    WATER_READING_PHOSPHATES: "Phosphates",
+    WATER_READING_COPPER: "Copper",
+    WATER_READING_IRON: "Iron",
+    WATER_READING_WATER_TEMPERATURE: "Water temperature",
+    WATER_READING_WATER_CLARITY: "Water clarity",
 }

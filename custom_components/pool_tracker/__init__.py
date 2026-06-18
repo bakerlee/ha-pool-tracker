@@ -20,6 +20,7 @@ from .const import (
     CONF_DEFAULT_TESTING_METHOD,
     CONF_POOL_ID,
     CONF_POOL_NAME,
+    CONF_TRACKED_METRICS,
     CONF_TYPICALLY_COVERED,
     DEFAULT_TESTING_METHOD,
     DOMAIN,
@@ -33,6 +34,7 @@ from .const import (
     WATER_READING_WATER_CLARITY,
     WATER_TESTING_METHOD,
     WATER_TESTING_METHODS,
+    enabled_water_test_metrics,
     normalize_chemical_amount_unit,
 )
 from .models import build_chemical_addition_record, build_water_test_record
@@ -290,6 +292,7 @@ def _pool_profiles_from_entry(
     pool_id = pool[CONF_POOL_ID]
     pool.setdefault(CONF_DEFAULT_TESTING_METHOD, DEFAULT_TESTING_METHOD)
     pool.setdefault(CONF_TYPICALLY_COVERED, False)
+    pool.setdefault(CONF_TRACKED_METRICS, list(enabled_water_test_metrics(pool)))
     return {pool_id: pool}
 
 

@@ -24,9 +24,11 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_POOL_VOLUME_UNIT,
     CONF_SANITIZER_TYPE,
     CONF_SURFACE_TYPE,
+    CONF_TRACKED_METRICS,
     CONF_TYPICALLY_COVERED,
     CONF_WEATHER_ENTITY_ID,
     DOMAIN,
+    WATER_TEST_METRICS,
 )
 
 
@@ -41,6 +43,7 @@ def test_build_pool_config_keeps_future_calculation_attributes() -> None:
             CONF_SURFACE_TYPE: "plaster",
             CONF_SANITIZER_TYPE: "chlorine",
             CONF_DEFAULT_TESTING_METHOD: "strips",
+            CONF_TRACKED_METRICS: ["ph", "salt", "water_clarity"],
             CONF_TYPICALLY_COVERED: True,
             CONF_WEATHER_ENTITY_ID: "weather.home",
             CONF_COVER_ENTITY_ID: "binary_sensor.pool_covered",
@@ -54,6 +57,7 @@ def test_build_pool_config_keeps_future_calculation_attributes() -> None:
     assert pool[CONF_SURFACE_TYPE] == "plaster"
     assert pool[CONF_SANITIZER_TYPE] == "chlorine"
     assert pool[CONF_DEFAULT_TESTING_METHOD] == "strips"
+    assert pool[CONF_TRACKED_METRICS] == ["ph", "salt", "water_clarity"]
     assert pool[CONF_TYPICALLY_COVERED] is True
     assert pool[CONF_WEATHER_ENTITY_ID] == "weather.home"
     assert pool[CONF_COVER_ENTITY_ID] == "binary_sensor.pool_covered"
@@ -74,6 +78,7 @@ def test_pool_profile_schema_serializes_for_home_assistant_forms() -> None:
         CONF_SURFACE_TYPE,
         CONF_SANITIZER_TYPE,
         CONF_DEFAULT_TESTING_METHOD,
+        CONF_TRACKED_METRICS,
         CONF_TYPICALLY_COVERED,
         CONF_WEATHER_ENTITY_ID,
         CONF_COVER_ENTITY_ID,
@@ -84,6 +89,15 @@ def test_pool_profile_schema_serializes_for_home_assistant_forms() -> None:
     assert sanitizer["selector"]["select"]["options"][1] == {
         "value": "salt_chlorine_generator",
         "label": "Salt chlorine generator",
+    }
+    tracked_metrics = next(
+        field for field in converted if field["name"] == CONF_TRACKED_METRICS
+    )
+    assert tracked_metrics["default"] == list(WATER_TEST_METRICS)
+    assert tracked_metrics["selector"]["select"]["multiple"] is True
+    assert tracked_metrics["selector"]["select"]["options"][0] == {
+        "value": "free_chlorine",
+        "label": "Free chlorine",
     }
 
 

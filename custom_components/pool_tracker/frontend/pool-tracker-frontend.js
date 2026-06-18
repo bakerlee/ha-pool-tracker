@@ -111,6 +111,15 @@ class PoolTrackerGraphCard extends HTMLElement {
     );
   }
 
+  _poolLogStates() {
+    if (!this._hass) {
+      return [];
+    }
+    return Object.values(this._hass.states)
+      .filter((state) => isPoolLogState(state))
+      .sort((left, right) => stateTitle(left).localeCompare(stateTitle(right)));
+  }
+
   _render(options = {}) {
     if (!this.shadowRoot) {
       return;
@@ -125,11 +134,12 @@ class PoolTrackerGraphCard extends HTMLElement {
     const selected =
       states.find((state) => state.entity_id === this._selectedEntityId) ||
       states[0];
+    const logState = selected || this._poolLogStates()[0];
 
     this.shadowRoot.innerHTML = `
       <style>${styles()}</style>
       <ha-card>
-        ${this._renderContent(states, selected)}
+        ${this._renderContent(states, logState)}
       </ha-card>
     `;
 
@@ -178,25 +188,29 @@ class PoolTrackerGraphCard extends HTMLElement {
     }
   }
 
-  _renderContent(states, selected) {
+  _renderContent(states, logState) {
     if (!this._hass) {
       return `<div class="empty">Waiting for Home Assistant.</div>`;
     }
-    if (!states.length) {
-      return `<div class="empty">No Pool Tracker predictions yet.</div>`;
+    if (!states.length && !logState) {
+      return `<div class="empty">No Pool Tracker sensors yet.</div>`;
     }
 
     return `
       <div class="header">
         <div>
           <div class="title">${escapeHtml(this._config.title || "Pool Tracker")}</div>
-          <div class="subtitle">${escapeHtml(readingsSummary(states))}</div>
+          <div class="subtitle">${escapeHtml(states.length ? readingsSummary(states) : poolTitle(logState))}</div>
         </div>
       </div>
       <div class="chart-list">
-        ${states.map((state) => this._renderReading(state)).join("")}
+        ${
+          states.length
+            ? states.map((state) => this._renderReading(state)).join("")
+            : `<div class="empty">No prediction charts for enabled metrics.</div>`
+        }
       </div>
-      ${this._renderLogTools(selected)}
+      ${this._renderLogTools(logState)}
     `;
   }
 
@@ -233,12 +247,14 @@ class PoolTrackerGraphCard extends HTMLElement {
   }
 
   _renderWaterTestForm(attrs) {
+    const readingFields = enabledWaterReadingFields(attrs);
+    const showClarity = metricEnabled(attrs, "water_clarity");
     return `
       <form class="log-form" data-log="water-test">
         <div class="section-title">Log test</div>
         ${poolHiddenInput(attrs)}
         <div class="field-grid readings">
-          ${WATER_READING_FIELDS.map(
+          ${readingFields.map(
             (field) => `
               <label>
                 <span>${escapeHtml(field.label)}</span>
@@ -256,14 +272,18 @@ class PoolTrackerGraphCard extends HTMLElement {
           ).join("")}
         </div>
         <div class="field-grid">
-          <label>
-            <span>Clarity</span>
-            <select name="water_clarity">
-              ${WATER_CLARITY_OPTIONS.map(
-                (value) => `<option value="${escapeHtml(value)}">${escapeHtml(value ? labelFor(value) : "None")}</option>`,
-              ).join("")}
-            </select>
-          </label>
+          ${
+            showClarity
+              ? `<label>
+                  <span>Clarity</span>
+                  <select name="water_clarity">
+                    ${WATER_CLARITY_OPTIONS.map(
+                      (value) => `<option value="${escapeHtml(value)}">${escapeHtml(value ? labelFor(value) : "None")}</option>`,
+                    ).join("")}
+                  </select>
+                </label>`
+              : ""
+          }
           <label>
             <span>Method</span>
             <select name="testing_method">
@@ -512,6 +532,15 @@ function hasWaterTestContent(payload) {
   ].some((key) => payload[key] !== undefined && payload[key] !== "");
 }
 
+function enabledWaterReadingFields(attrs) {
+  return WATER_READING_FIELDS.filter((field) => metricEnabled(attrs, field.key));
+}
+
+function metricEnabled(attrs, metric) {
+  const trackedMetrics = attrs?.tracked_metrics;
+  return !Array.isArray(trackedMetrics) || trackedMetrics.includes(metric);
+}
+
 function labelFor(value) {
   const labels = {
     drop_test: "Drop test",
@@ -553,6 +582,19 @@ function isPredictionState(state) {
     Array.isArray(state.attributes?.actuals) &&
     Array.isArray(state.attributes?.chemical_additions)
   );
+}
+
+function isPoolLogState(state) {
+  return (
+    state &&
+    state.entity_id.startsWith("sensor.") &&
+    state.attributes?.pool_id &&
+    Array.isArray(state.attributes?.tracked_metrics)
+  );
+}
+
+function poolTitle(state) {
+  return state?.attributes?.pool_name || stateTitle(state);
 }
 
 function renderChart(state) {
