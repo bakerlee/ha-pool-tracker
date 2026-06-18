@@ -20,6 +20,27 @@ log_water_test:
           min: 0
           mode: box
           unit_of_measurement: ppm
+    total_chlorine:
+      example: 3.4
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: ppm
+    combined_chlorine:
+      example: 0.2
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: ppm
+    total_bromine:
+      example: 4.0
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: ppm
     ph:
       example: 7.2
       selector:
@@ -34,6 +55,20 @@ log_water_test:
           min: 0
           mode: box
           unit_of_measurement: ppm
+    calcium_hardness:
+      example: 250
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: ppm
+    total_hardness:
+      example: 275
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: ppm
     cya:
       example: 40
       selector:
@@ -41,6 +76,48 @@ log_water_test:
           min: 0
           mode: box
           unit_of_measurement: ppm
+    salt:
+      example: 3200
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: ppm
+    total_dissolved_solids:
+      example: 1500
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: ppm
+    phosphates:
+      example: 0.1
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: ppm
+    copper:
+      example: 0.1
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: ppm
+    iron:
+      example: 0.1
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: ppm
+    water_temperature:
+      example: 82
+      selector:
+        number:
+          min: 0
+          mode: box
+          unit_of_measurement: F
     water_clarity:
       example: clear
       selector:

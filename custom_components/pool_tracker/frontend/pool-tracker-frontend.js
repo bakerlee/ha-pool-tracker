@@ -3,9 +3,20 @@ const PANEL_TAG = "pool-tracker-panel";
 
 const WATER_READING_FIELDS = [
   { key: "free_chlorine", label: "Free chlorine", unit: "ppm", step: "0.1" },
+  { key: "total_chlorine", label: "Total chlorine", unit: "ppm", step: "0.1" },
+  { key: "combined_chlorine", label: "Combined chlorine", unit: "ppm", step: "0.1" },
+  { key: "total_bromine", label: "Total bromine", unit: "ppm", step: "0.1" },
   { key: "ph", label: "pH", unit: "", step: "0.1", max: "14" },
   { key: "total_alkalinity", label: "Total alkalinity", unit: "ppm", step: "1" },
+  { key: "calcium_hardness", label: "Calcium hardness", unit: "ppm", step: "1" },
+  { key: "total_hardness", label: "Total hardness", unit: "ppm", step: "1" },
   { key: "cya", label: "CYA/stabilizer", unit: "ppm", step: "1" },
+  { key: "salt", label: "Salt", unit: "ppm", step: "1" },
+  { key: "total_dissolved_solids", label: "Total dissolved solids", unit: "ppm", step: "1" },
+  { key: "phosphates", label: "Phosphates", unit: "ppm", step: "0.01" },
+  { key: "copper", label: "Copper", unit: "ppm", step: "0.01" },
+  { key: "iron", label: "Iron", unit: "ppm", step: "0.01" },
+  { key: "water_temperature", label: "Water temperature", unit: "F", step: "0.1" },
 ];
 
 const WATER_CLARITY_OPTIONS = ["", "clear", "hazy", "cloudy", "green", "other"];
@@ -495,10 +506,7 @@ function selectedPoolId(root) {
 
 function hasWaterTestContent(payload) {
   return [
-    "free_chlorine",
-    "ph",
-    "total_alkalinity",
-    "cya",
+    ...WATER_READING_FIELDS.map((field) => field.key),
     "water_clarity",
     "notes",
   ].some((key) => payload[key] !== undefined && payload[key] !== "");
@@ -513,6 +521,7 @@ function labelFor(value) {
     salt_chlorine_generator: "Salt chlorine generator",
     ph: "pH",
     cya: "CYA/stabilizer",
+    total_dissolved_solids: "Total dissolved solids",
     mL: "Milliliters",
     L: "Liters",
     Tbsp: "Tablespoons",

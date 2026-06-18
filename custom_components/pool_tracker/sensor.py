@@ -38,15 +38,14 @@ from .const import (
     CONF_WEATHER_ENTITY_ID,
     DOMAIN,
     NUMERIC_WATER_READINGS,
+    PREDICTED_WATER_READINGS,
     RECORD_TYPE_CHEMICAL_ADDITION,
     RECORD_TYPE_WATER_TEST,
     SERVICE_GET_PREDICTION,
     WATER_CLARITY_OPTIONS,
-    WATER_READING_CYA,
-    WATER_READING_FREE_CHLORINE,
-    WATER_READING_PH,
-    WATER_READING_TOTAL_ALKALINITY,
     WATER_READING_WATER_CLARITY,
+    WATER_TEST_READING_PRECISION,
+    WATER_TEST_READING_UNITS,
     WATER_TESTING_METHOD,
 )
 from .models import PoolRecord, chemical_summary, parse_utc
@@ -121,7 +120,7 @@ def _prediction_attrs(entity: PoolTrackerSensor, reading: str) -> dict[str, Any]
     prediction = entity.prediction(reading)
     if prediction is None:
         return _log_attrs(entity) | {
-            "unit": "pH" if reading == WATER_READING_PH else "ppm",
+            "unit": WATER_TEST_READING_UNITS[reading],
             "series": [],
             "actuals": [],
             "chemical_additions": [],
@@ -246,49 +245,21 @@ def _prediction_response(prediction: ReadingPrediction) -> dict[str, Any]:
 
 
 SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
-    PoolSensorDescription(
-        key="free_chlorine",
-        translation_key="free_chlorine",
-        native_unit_of_measurement="ppm",
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=2,
-        value_fn=lambda entity: _latest_reading_value(
-            entity, WATER_READING_FREE_CHLORINE
-        ),
-        attr_fn=lambda entity: _latest_reading_attrs(
-            entity, WATER_READING_FREE_CHLORINE
-        ),
-    ),
-    PoolSensorDescription(
-        key="ph",
-        translation_key="ph",
-        native_unit_of_measurement="pH",
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=2,
-        value_fn=lambda entity: _latest_reading_value(entity, WATER_READING_PH),
-        attr_fn=lambda entity: _latest_reading_attrs(entity, WATER_READING_PH),
-    ),
-    PoolSensorDescription(
-        key="total_alkalinity",
-        translation_key="total_alkalinity",
-        native_unit_of_measurement="ppm",
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=0,
-        value_fn=lambda entity: _latest_reading_value(
-            entity, WATER_READING_TOTAL_ALKALINITY
-        ),
-        attr_fn=lambda entity: _latest_reading_attrs(
-            entity, WATER_READING_TOTAL_ALKALINITY
-        ),
-    ),
-    PoolSensorDescription(
-        key="cya",
-        translation_key="cya",
-        native_unit_of_measurement="ppm",
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=0,
-        value_fn=lambda entity: _latest_reading_value(entity, WATER_READING_CYA),
-        attr_fn=lambda entity: _latest_reading_attrs(entity, WATER_READING_CYA),
+    *(
+        PoolSensorDescription(
+            key=reading,
+            translation_key=reading,
+            native_unit_of_measurement=WATER_TEST_READING_UNITS[reading],
+            state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=WATER_TEST_READING_PRECISION[reading],
+            value_fn=lambda entity, latest_reading=reading: _latest_reading_value(
+                entity, latest_reading
+            ),
+            attr_fn=lambda entity, latest_reading=reading: _latest_reading_attrs(
+                entity, latest_reading
+            ),
+        )
+        for reading in NUMERIC_WATER_READINGS
     ),
     PoolSensorDescription(
         key="water_clarity",
@@ -304,7 +275,7 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
         PoolSensorDescription(
             key=f"{reading}_predicted",
             translation_key=f"{reading}_predicted",
-            native_unit_of_measurement="pH" if reading == WATER_READING_PH else "ppm",
+            native_unit_of_measurement=WATER_TEST_READING_UNITS[reading],
             suggested_display_precision=2,
             value_fn=lambda entity, prediction_reading=reading: _prediction_value(
                 entity, prediction_reading
@@ -314,7 +285,7 @@ SENSOR_DESCRIPTIONS: tuple[PoolSensorDescription, ...] = (
             ),
             prediction_reading=reading,
         )
-        for reading in NUMERIC_WATER_READINGS
+        for reading in PREDICTED_WATER_READINGS
     ),
 )
 

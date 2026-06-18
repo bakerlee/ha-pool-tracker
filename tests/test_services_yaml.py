@@ -31,3 +31,26 @@ def test_chemical_addition_service_uses_selectors() -> None:
         "fl. oz.",
         "gal",
     }
+
+
+def test_water_test_service_metadata_includes_expanded_metrics() -> None:
+    """Water-test service metadata should expose the supported reading fields."""
+    services = yaml.safe_load(
+        Path("custom_components/pool_tracker/services.yaml").read_text()
+    )
+
+    fields = services["log_water_test"]["fields"]
+    for field in (
+        "total_chlorine",
+        "combined_chlorine",
+        "total_bromine",
+        "calcium_hardness",
+        "total_hardness",
+        "salt",
+        "total_dissolved_solids",
+        "phosphates",
+        "copper",
+        "iron",
+        "water_temperature",
+    ):
+        assert "number" in fields[field]["selector"]

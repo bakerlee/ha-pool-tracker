@@ -53,9 +53,20 @@ If Home Assistant has exactly one weather entity when a pool is configured, Pool
 Each configured pool device exposes read-only sensors derived from the event log:
 
 - Free chlorine
+- Total chlorine
+- Combined chlorine
+- Total bromine
 - pH
 - Total alkalinity
+- Calcium hardness
+- Total hardness
 - CYA/stabilizer
+- Salt
+- Total dissolved solids
+- Phosphates
+- Copper
+- Iron
+- Water temperature
 - Water clarity
 - Free chlorine (Predicted)
 - pH (Predicted)
@@ -146,7 +157,9 @@ service: pool_tracker.log_water_test
 data:
   event_timestamp: "2026-06-14T19:30:00-05:00"
   free_chlorine: 3.1
+  total_chlorine: 3.3
   total_alkalinity: 80
+  total_hardness: 275
   source: dashboard
 ```
 
@@ -231,7 +244,10 @@ Each record includes:
 - Optional source
 - Optional notes
 
-Water-test fields are stored only when explicitly submitted. Chemical additions store chemical, amount, and unit.
+Water-test fields are stored only when explicitly submitted. Supported water-test
+readings include sanitizer, pH, alkalinity, hardness, stabilizer, salt, total
+dissolved solids, phosphates, copper, iron, water temperature, and water clarity.
+Chemical additions store chemical, amount, and unit.
 
 Water-test records also store the resolved testing method when one is configured or supplied on the service call. This is intended for future method-aware accuracy handling.
 

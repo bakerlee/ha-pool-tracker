@@ -61,6 +61,18 @@
           "name": "Free chlorine",
           "description": "Free chlorine reading in ppm."
         },
+        "total_chlorine": {
+          "name": "Total chlorine",
+          "description": "Total chlorine reading in ppm."
+        },
+        "combined_chlorine": {
+          "name": "Combined chlorine",
+          "description": "Combined chlorine reading in ppm."
+        },
+        "total_bromine": {
+          "name": "Total bromine",
+          "description": "Total bromine reading in ppm."
+        },
         "ph": {
           "name": "pH",
           "description": "pH reading."
@@ -69,9 +81,41 @@
           "name": "Total alkalinity",
           "description": "Total alkalinity reading in ppm."
         },
+        "calcium_hardness": {
+          "name": "Calcium hardness",
+          "description": "Calcium hardness reading in ppm."
+        },
+        "total_hardness": {
+          "name": "Total hardness",
+          "description": "Total hardness reading in ppm."
+        },
         "cya": {
           "name": "CYA/stabilizer",
           "description": "CYA/stabilizer reading in ppm."
+        },
+        "salt": {
+          "name": "Salt",
+          "description": "Salt reading in ppm."
+        },
+        "total_dissolved_solids": {
+          "name": "Total dissolved solids",
+          "description": "Total dissolved solids reading in ppm."
+        },
+        "phosphates": {
+          "name": "Phosphates",
+          "description": "Phosphate reading in ppm."
+        },
+        "copper": {
+          "name": "Copper",
+          "description": "Copper reading in ppm."
+        },
+        "iron": {
+          "name": "Iron",
+          "description": "Iron reading in ppm."
+        },
+        "water_temperature": {
+          "name": "Water temperature",
+          "description": "Water temperature reading in F."
         },
         "water_clarity": {
           "name": "Water clarity",
@@ -139,14 +183,47 @@
       "free_chlorine": {
         "name": "Free chlorine"
       },
+      "total_chlorine": {
+        "name": "Total chlorine"
+      },
+      "combined_chlorine": {
+        "name": "Combined chlorine"
+      },
+      "total_bromine": {
+        "name": "Total bromine"
+      },
       "ph": {
         "name": "pH"
       },
       "total_alkalinity": {
         "name": "Total alkalinity"
       },
+      "calcium_hardness": {
+        "name": "Calcium hardness"
+      },
+      "total_hardness": {
+        "name": "Total hardness"
+      },
       "cya": {
         "name": "CYA/stabilizer"
+      },
+      "salt": {
+        "name": "Salt"
+      },
+      "total_dissolved_solids": {
+        "name": "Total dissolved solids"
+      },
+      "phosphates": {
+        "name": "Phosphates"
+      },
+      "copper": {
+        "name": "Copper"
+      },
+      "iron": {
+        "name": "Iron"
+      },
+      "water_temperature": {
+        "name": "Water temperature"
       },
       "water_clarity": {
         "name": "Water clarity",

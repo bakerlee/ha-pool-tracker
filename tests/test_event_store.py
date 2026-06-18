@@ -9,8 +9,11 @@ import pytest
 from custom_components.pool_tracker.const import (
     RECORD_TYPE_CHEMICAL_ADDITION,
     RECORD_TYPE_WATER_TEST,
+    WATER_READING_CALCIUM_HARDNESS,
     WATER_READING_FREE_CHLORINE,
     WATER_READING_PH,
+    WATER_READING_TOTAL_CHLORINE,
+    WATER_READING_TOTAL_HARDNESS,
     WATER_READING_WATER_CLARITY,
     WATER_TESTING_METHOD,
 )
@@ -56,6 +59,29 @@ async def test_partial_water_test_allows_subset(store: PoolTrackerStore) -> None
 
     readings = store.records("pool")[0]["readings"]
     assert readings == {WATER_READING_PH: {"value": 7.2, "unit": "pH"}}
+
+
+async def test_water_test_stores_expanded_test_metrics(
+    store: PoolTrackerStore,
+) -> None:
+    """Expanded pool test readings are stored only when submitted."""
+    record = build_water_test_record(
+        pool_id="pool",
+        readings={
+            WATER_READING_TOTAL_CHLORINE: 3.4,
+            WATER_READING_CALCIUM_HARDNESS: 250,
+            WATER_READING_TOTAL_HARDNESS: 275,
+        },
+    )
+
+    await store.async_append(record)
+
+    readings = store.records("pool")[0]["readings"]
+    assert readings == {
+        WATER_READING_TOTAL_CHLORINE: {"value": 3.4, "unit": "ppm"},
+        WATER_READING_CALCIUM_HARDNESS: {"value": 250, "unit": "ppm"},
+        WATER_READING_TOTAL_HARDNESS: {"value": 275, "unit": "ppm"},
+    }
 
 
 async def test_water_test_stores_testing_method(store: PoolTrackerStore) -> None:

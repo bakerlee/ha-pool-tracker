@@ -28,9 +28,20 @@ Supported fields:
 - `source`
 - `notes`
 - `free_chlorine`
+- `total_chlorine`
+- `combined_chlorine`
+- `total_bromine`
 - `ph`
 - `total_alkalinity`
+- `calcium_hardness`
+- `total_hardness`
 - `cya`
+- `salt`
+- `total_dissolved_solids`
+- `phosphates`
+- `copper`
+- `iron`
+- `water_temperature`
 - `water_clarity`
 
 At least one reading, clarity value, or note is required.

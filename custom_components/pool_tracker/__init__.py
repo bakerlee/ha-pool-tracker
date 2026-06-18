@@ -24,14 +24,12 @@ from .const import (
     DEFAULT_TESTING_METHOD,
     DOMAIN,
     EVENT_RECORD_CREATED,
+    NUMERIC_WATER_READINGS,
     PLATFORMS,
     SERVICE_LOG_CHEMICAL_ADDITION,
     SERVICE_LOG_WATER_TEST,
     WATER_CLARITY_OPTIONS,
-    WATER_READING_CYA,
-    WATER_READING_FREE_CHLORINE,
     WATER_READING_PH,
-    WATER_READING_TOTAL_ALKALINITY,
     WATER_READING_WATER_CLARITY,
     WATER_TESTING_METHOD,
     WATER_TESTING_METHODS,
@@ -80,14 +78,7 @@ def _positive_number(value: Any) -> float:
 def _validate_water_test_content(data: dict[str, Any]) -> dict[str, Any]:
     if any(
         data.get(key) not in (None, "")
-        for key in (
-            WATER_READING_FREE_CHLORINE,
-            WATER_READING_PH,
-            WATER_READING_TOTAL_ALKALINITY,
-            WATER_READING_CYA,
-            WATER_READING_WATER_CLARITY,
-            "notes",
-        )
+        for key in (*NUMERIC_WATER_READINGS, WATER_READING_WATER_CLARITY, "notes")
     ):
         return data
     raise vol.Invalid(
@@ -103,10 +94,12 @@ def _water_test_service_schema():
                 vol.Optional("event_timestamp"): cv.datetime,
                 vol.Optional("source", default="service"): cv.string,
                 vol.Optional("notes"): cv.string,
-                vol.Optional(WATER_READING_FREE_CHLORINE): _number(0),
-                vol.Optional(WATER_READING_PH): _number(0, 14),
-                vol.Optional(WATER_READING_TOTAL_ALKALINITY): _number(0),
-                vol.Optional(WATER_READING_CYA): _number(0),
+                **{
+                    vol.Optional(reading): (
+                        _number(0, 14) if reading == WATER_READING_PH else _number(0)
+                    )
+                    for reading in NUMERIC_WATER_READINGS
+                },
                 vol.Optional(WATER_READING_WATER_CLARITY): vol.In(
                     WATER_CLARITY_OPTIONS
                 ),
@@ -144,13 +137,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         runtime, pool_id = _runtime_for_call(hass, call.data.get(CONF_POOL_ID))
         readings = {
             key: call.data.get(key)
-            for key in (
-                WATER_READING_FREE_CHLORINE,
-                WATER_READING_PH,
-                WATER_READING_TOTAL_ALKALINITY,
-                WATER_READING_CYA,
-                WATER_READING_WATER_CLARITY,
-            )
+            for key in (*NUMERIC_WATER_READINGS, WATER_READING_WATER_CLARITY)
         }
         record = build_water_test_record(
             pool_id=pool_id,
