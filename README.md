@@ -112,13 +112,26 @@ For chemical additions, Pool Tracker uses configured volume when available. If v
 
 Pool Tracker includes a bundled frontend module at `/pool_tracker_static/pool-tracker-frontend.js`.
 
-When Home Assistant frontend support is available, the integration registers a `Pool Tracker` sidebar panel automatically. The panel discovers Pool Tracker prediction sensors and shows all prediction charts at once, including the predicted value line, uncertainty bounds, actual water tests, and chemical additions without hand-written Lovelace YAML or a third-party chart card. The chart layout is responsive: narrow screens stack readings, wider dashboards show multiple readings per row, and laptop-size layouts can show the default four readings in one row.
+When Home Assistant frontend support is available, the integration registers a
+`Pool Tracker` sidebar panel automatically. The panel opens as a normal
+storage-mode Lovelace dashboard with concrete cards under `views` and `cards`,
+so users can edit, remove, reorder, and copy the generated Lovelace elements
+instead of being stuck with a single opaque strategy entry. Until the dashboard
+is edited and saved, Pool Tracker regenerates the default card set from current
+entities.
 
-The sidebar panel is assembled from standard Lovelace cards for summaries, latest
-readings, recent records, and repeat-chemical actions. Pool Tracker only uses a
-custom card for the prediction chart that Lovelace does not provide natively.
+The sidebar panel is assembled from standard Lovelace cards for summaries,
+latest readings, recent records, and repeat-chemical actions. Pool Tracker only
+uses a custom card for the prediction chart that Lovelace does not provide
+natively. The chart card shows all prediction charts at once, including the
+predicted value line, uncertainty bounds, actual water tests, and chemical
+additions. The chart layout is responsive: narrow screens stack readings, wider
+dashboards show multiple readings per row, and laptop-size layouts can show the
+default four readings in one row.
 
-The same module registers a Lovelace dashboard strategy for regular dashboards:
+The same module also registers a Lovelace dashboard strategy for regular
+dashboards when you prefer an always-generated dashboard instead of an editable
+starter dashboard:
 
 ```yaml
 strategy:

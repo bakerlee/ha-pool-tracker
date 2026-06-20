@@ -16,6 +16,7 @@ from custom_components.pool_tracker import (  # noqa: E402
     FRONTEND_MODULE_URL,
     FRONTEND_PANEL_URL_PATH,
     FRONTEND_URL_BASE,
+    PoolTrackerLovelaceConfig,
     _async_setup_frontend,
 )
 
@@ -67,9 +68,142 @@ async def test_frontend_setup_registers_static_assets_panel_and_card_module(
     lovelace_config = hass.data[LOVELACE_DATA].dashboards[FRONTEND_PANEL_URL_PATH]
     assert await lovelace_config.async_load(False) == {
         "title": "Pool Tracker",
-        "strategy": {"type": "custom:pool-tracker"},
-        "url_path": FRONTEND_PANEL_URL_PATH,
+        "views": [
+            {
+                "title": "Pool Tracker",
+                "path": "pool-tracker",
+                "cards": [
+                    {"type": "markdown", "content": "No Pool Tracker sensors yet."}
+                ],
+            }
+        ],
     }
+
+
+async def test_frontend_panel_generates_editable_lovelace_cards(hass) -> None:
+    """The sidebar dashboard exposes concrete Lovelace cards until edited."""
+    hass.states.async_set(
+        "sensor.pool_free_chlorine_predicted",
+        "3.2",
+        {
+            "friendly_name": "Pool Free chlorine (Predicted)",
+            "pool_id": "pool",
+            "pool_name": "Pool",
+            "tracked_metrics": ["free_chlorine"],
+            "series": [],
+            "actuals": [],
+            "chemical_additions": [],
+            "recent_water_tests": [
+                {
+                    "event_timestamp": "2026-06-15T18:30:00+00:00",
+                    "readings": {"free_chlorine": 3.0},
+                }
+            ],
+            "recent_chemical_additions": [
+                {
+                    "event_timestamp": "2026-06-15T19:00:00+00:00",
+                    "chemical": "dichlor",
+                    "amount": 1,
+                    "unit": "Tbsp",
+                    "summary": "dichlor: 1 Tbsp",
+                }
+            ],
+            "quick_chemical_additions": [
+                {
+                    "chemical": "dichlor",
+                    "amount": 1,
+                    "unit": "Tbsp",
+                    "summary": "dichlor: 1 Tbsp",
+                }
+            ],
+        },
+    )
+    hass.states.async_set(
+        "sensor.pool_free_chlorine",
+        "3.0",
+        {
+            "friendly_name": "Pool Free chlorine",
+            "pool_id": "pool",
+            "pool_name": "Pool",
+            "tracked_metrics": ["free_chlorine"],
+        },
+    )
+
+    lovelace_config = PoolTrackerLovelaceConfig(hass)
+
+    config = await lovelace_config.async_load(False)
+
+    cards = config["views"][0]["cards"]
+    assert [card["type"] for card in cards] == [
+        "custom:pool-tracker-graph-card",
+        "grid",
+        "entities",
+        "markdown",
+        "grid",
+    ]
+    assert cards[0] == {
+        "type": "custom:pool-tracker-graph-card",
+        "title": "Prediction charts",
+        "entities": ["sensor.pool_free_chlorine_predicted"],
+        "show_logs": False,
+    }
+    assert cards[1]["cards"] == [
+        {
+            "type": "tile",
+            "entity": "sensor.pool_free_chlorine_predicted",
+            "name": "Free chlorine",
+        }
+    ]
+    assert cards[2]["entities"] == ["sensor.pool_free_chlorine"]
+    assert "### Water tests" in cards[3]["content"]
+    assert cards[4]["cards"][0]["tap_action"] == {
+        "action": "call-service",
+        "service": "pool_tracker.log_chemical_addition",
+        "data": {
+            "pool_id": "pool",
+            "source": "dashboard",
+            "chemical": "dichlor",
+            "amount": 1,
+            "unit": "Tbsp",
+        },
+    }
+
+
+async def test_frontend_panel_persists_user_edited_lovelace_config(hass) -> None:
+    """Saved dashboard edits should not be regenerated over user changes."""
+    lovelace_config = PoolTrackerLovelaceConfig(hass)
+    edited = {
+        "title": "My Pool",
+        "views": [
+            {
+                "title": "Main",
+                "cards": [{"type": "entities", "entities": ["sensor.pool_ph"]}],
+            }
+        ],
+    }
+
+    await lovelace_config.async_save(edited)
+    hass.states.async_set(
+        "sensor.pool_ph_predicted",
+        "7.4",
+        {
+            "pool_id": "pool",
+            "tracked_metrics": ["ph"],
+            "series": [],
+            "actuals": [],
+            "chemical_additions": [],
+        },
+    )
+
+    assert await lovelace_config.async_load(False) == edited
+
+    await lovelace_config.async_delete()
+
+    regenerated = await lovelace_config.async_load(False)
+    assert regenerated["title"] == "Pool Tracker"
+    assert regenerated["views"][0]["cards"][0]["type"] == (
+        "custom:pool-tracker-graph-card"
+    )
 
 
 def test_frontend_module_registers_dashboard_strategy_and_lovelace_card() -> None:

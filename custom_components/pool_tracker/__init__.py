@@ -12,11 +12,20 @@ import voluptuous as vol
 from homeassistant.components import frontend
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
-from homeassistant.components.lovelace.const import LOVELACE_DATA, MODE_STORAGE
+from homeassistant.components.lovelace.const import (
+    CONF_ICON,
+    CONF_REQUIRE_ADMIN,
+    CONF_SHOW_IN_SIDEBAR,
+    CONF_TITLE,
+    LOVELACE_DATA,
+    MODE_STORAGE,
+)
 from homeassistant.components.lovelace.dashboard import LovelaceConfig
 from homeassistant.core import SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import storage
 from homeassistant.helpers.json import json_bytes, json_fragment
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CHEMICAL_AMOUNT_UNITS,
@@ -31,6 +40,7 @@ from .const import (
     EVENT_RECORD_CREATED,
     NUMERIC_WATER_READINGS,
     PLATFORMS,
+    SELECT_LABELS,
     SERVICE_LOG_CHEMICAL_ADDITION,
     SERVICE_LOG_WATER_TEST,
     WATER_CLARITY_OPTIONS,
@@ -54,21 +64,21 @@ _LOGGER = logging.getLogger(__name__)
 FRONTEND_URL_BASE = f"/{DOMAIN}_static"
 FRONTEND_MODULE_URL = f"{FRONTEND_URL_BASE}/pool-tracker-frontend.js"
 FRONTEND_PANEL_URL_PATH = DOMAIN
+FRONTEND_DASHBOARD_STORAGE_KEY = f"lovelace.{FRONTEND_PANEL_URL_PATH}"
+FRONTEND_DASHBOARD_STORAGE_VERSION = 1
+FRONTEND_GRAPH_CARD_TYPE = "custom:pool-tracker-graph-card"
 
 
 class PoolTrackerLovelaceConfig(LovelaceConfig):
-    """Integration-owned Lovelace dashboard for the Pool Tracker sidebar tab."""
+    """Editable Lovelace dashboard for the Pool Tracker sidebar tab."""
 
     def __init__(self, hass: HomeAssistant) -> None:
-        super().__init__(
-            hass,
-            FRONTEND_PANEL_URL_PATH,
-            {
-                "title": "Pool Tracker",
-                "strategy": {"type": "custom:pool-tracker"},
-            },
+        super().__init__(hass, FRONTEND_PANEL_URL_PATH, _frontend_dashboard_metadata())
+        self._store = storage.Store[dict[str, Any]](
+            hass, FRONTEND_DASHBOARD_STORAGE_VERSION, FRONTEND_DASHBOARD_STORAGE_KEY
         )
-        self._json_config = json_fragment(json_bytes(self.config))
+        self._data: dict[str, Any] | None = None
+        self._json_config: json_fragment | None = None
 
     @property
     def mode(self) -> str:
@@ -77,15 +87,47 @@ class PoolTrackerLovelaceConfig(LovelaceConfig):
 
     async def async_get_info(self) -> dict[str, Any]:
         """Return dashboard metadata."""
-        return {"mode": self.mode, "views": 1}
+        config = await self.async_load(False)
+        return {"mode": self.mode, "views": len(config.get("views", []))}
 
     async def async_load(self, force: bool) -> dict[str, Any]:
         """Return the generated dashboard config."""
-        return self.config
+        if force:
+            self._data = None
+            self._json_config = None
+        data = self._data or await self._async_load_data()
+        if data["config"] is not None:
+            return data["config"]
+        return _pool_tracker_lovelace_config(self.hass)
 
     async def async_json(self, force: bool) -> json_fragment:
         """Return the dashboard config as JSON."""
+        config = await self.async_load(force)
+        if self._data is not None and self._data["config"] is None:
+            return json_fragment(json_bytes(config))
+        if self._json_config is None or force:
+            self._json_config = json_fragment(json_bytes(config))
         return self._json_config
+
+    async def async_save(self, config: dict[str, Any]) -> None:
+        """Persist a user-edited Lovelace config."""
+        data = self._data or await self._async_load_data()
+        data["config"] = config
+        self._json_config = None
+        self._config_updated()
+        await self._store.async_save(data)
+
+    async def async_delete(self) -> None:
+        """Remove the user-edited Lovelace config and return to generated cards."""
+        await self._store.async_remove()
+        self._data = {"config": None}
+        self._json_config = None
+        self._config_updated()
+
+    async def _async_load_data(self) -> dict[str, Any]:
+        """Load the stored Lovelace config wrapper."""
+        self._data = await self._store.async_load() or {"config": None}
+        return self._data
 
 
 @dataclass
@@ -95,6 +137,299 @@ class PoolTrackerRuntime:
     store: PoolTrackerStore
     pools: dict[str, str]
     pool_profiles: dict[str, dict[str, Any]]
+
+
+def _frontend_dashboard_metadata() -> dict[str, Any]:
+    """Return metadata for the Pool Tracker Lovelace dashboard."""
+    return {
+        "id": FRONTEND_PANEL_URL_PATH,
+        CONF_TITLE: "Pool Tracker",
+        CONF_ICON: "mdi:pool",
+        CONF_SHOW_IN_SIDEBAR: True,
+        CONF_REQUIRE_ADMIN: False,
+    }
+
+
+def _pool_tracker_lovelace_config(hass: HomeAssistant) -> dict[str, Any]:
+    """Build the default editable Pool Tracker dashboard config."""
+    return {
+        "title": "Pool Tracker",
+        "views": [
+            {
+                "title": "Pool Tracker",
+                "path": "pool-tracker",
+                "cards": _pool_tracker_lovelace_cards(hass),
+            }
+        ],
+    }
+
+
+def _pool_tracker_lovelace_cards(hass: HomeAssistant) -> list[dict[str, Any]]:
+    """Build the concrete Lovelace cards for the Pool Tracker dashboard."""
+    prediction_states = _prediction_states_for_hass(hass)
+    log_states = _pool_log_states_for_hass(hass)
+    latest_reading_states = [
+        state for state in log_states if not _is_prediction_state(state)
+    ]
+    selected_log_state = prediction_states[0] if prediction_states else None
+    if selected_log_state is None and log_states:
+        selected_log_state = log_states[0]
+
+    if not prediction_states and not latest_reading_states:
+        return [{"type": "markdown", "content": "No Pool Tracker sensors yet."}]
+
+    cards: list[dict[str, Any]] = []
+    if prediction_states:
+        cards.append(
+            {
+                "type": FRONTEND_GRAPH_CARD_TYPE,
+                "title": "Prediction charts",
+                "entities": [state.entity_id for state in prediction_states],
+                "show_logs": False,
+            }
+        )
+        cards.append(
+            {
+                "type": "grid",
+                "title": "Predictions now",
+                "columns": min(2, len(prediction_states)),
+                "square": False,
+                "cards": [
+                    {
+                        "type": "tile",
+                        "entity": state.entity_id,
+                        "name": _reading_title(state),
+                    }
+                    for state in prediction_states
+                ],
+            }
+        )
+
+    if latest_reading_states:
+        cards.append(
+            {
+                "type": "entities",
+                "title": "Latest readings",
+                "show_header_toggle": False,
+                "entities": [state.entity_id for state in latest_reading_states],
+            }
+        )
+
+    if recent_records := _recent_records_markdown(selected_log_state):
+        cards.append(
+            {
+                "type": "markdown",
+                "title": "Recent records",
+                "content": recent_records,
+            }
+        )
+
+    if quick_cards := _quick_chemical_cards(selected_log_state):
+        cards.append(
+            {
+                "type": "grid",
+                "title": "Repeat chemical additions",
+                "columns": min(2, len(quick_cards)),
+                "square": False,
+                "cards": quick_cards,
+            }
+        )
+
+    return cards
+
+
+def _prediction_states_for_hass(hass: HomeAssistant) -> list[Any]:
+    """Return Pool Tracker prediction states sorted for Lovelace output."""
+    return sorted(
+        (
+            state
+            for state in hass.states.async_all("sensor")
+            if _is_prediction_state(state)
+        ),
+        key=_state_title,
+    )
+
+
+def _pool_log_states_for_hass(hass: HomeAssistant) -> list[Any]:
+    """Return Pool Tracker log-capable states sorted for Lovelace output."""
+    return sorted(
+        (
+            state
+            for state in hass.states.async_all("sensor")
+            if _is_pool_log_state(state)
+        ),
+        key=_state_title,
+    )
+
+
+def _is_prediction_state(state: Any) -> bool:
+    """Return whether a state exposes Pool Tracker prediction chart attrs."""
+    attrs = state.attributes
+    return (
+        state.entity_id.startswith("sensor.")
+        and isinstance(attrs.get("series"), list)
+        and isinstance(attrs.get("actuals"), list)
+        and isinstance(attrs.get("chemical_additions"), list)
+    )
+
+
+def _is_pool_log_state(state: Any) -> bool:
+    """Return whether a state exposes Pool Tracker log attributes."""
+    attrs = state.attributes
+    return (
+        state.entity_id.startswith("sensor.")
+        and attrs.get("pool_id") is not None
+        and isinstance(attrs.get("tracked_metrics"), list)
+    )
+
+
+def _state_title(state: Any) -> str:
+    """Return a friendly title for a Home Assistant state."""
+    return state.attributes.get("friendly_name") or state.entity_id
+
+
+def _clean_title(state: Any) -> str:
+    """Return a friendly title without the prediction suffix."""
+    return _state_title(state).replace(" (Predicted)", "")
+
+
+def _reading_title(state: Any) -> str:
+    """Return a short reading label for a Pool Tracker sensor."""
+    title = _clean_title(state)
+    pool_name = state.attributes.get("pool_name")
+    if pool_name and title.startswith(f"{pool_name} "):
+        return title[len(pool_name) + 1 :]
+    return title
+
+
+def _quick_chemical_cards(state: Any | None) -> list[dict[str, Any]]:
+    """Return standard Lovelace button cards for repeat chemical actions."""
+    attrs = state.attributes if state is not None else {}
+    quick_additions = attrs.get("quick_chemical_additions") or []
+    return [
+        {
+            "type": "button",
+            "name": action.get("summary") or _chemical_summary(action),
+            "icon": "mdi:repeat",
+            "tap_action": {
+                "action": "call-service",
+                "service": "pool_tracker.log_chemical_addition",
+                "data": _compact_object(
+                    {
+                        "pool_id": attrs.get("pool_id"),
+                        "source": "dashboard",
+                        "chemical": action.get("chemical"),
+                        "amount": _numeric_or_original(action.get("amount")),
+                        "unit": action.get("unit"),
+                    }
+                ),
+            },
+        }
+        for action in quick_additions
+    ]
+
+
+def _recent_records_markdown(state: Any | None) -> str:
+    """Return markdown for recent Pool Tracker records."""
+    attrs = state.attributes if state is not None else {}
+    water_tests = attrs.get("recent_water_tests") or []
+    chemical_additions = attrs.get("recent_chemical_additions") or []
+    sections: list[str] = []
+
+    if water_tests:
+        sections.append(
+            "\n".join(
+                ["### Water tests"]
+                + [f"- {_water_test_line(record)}" for record in water_tests]
+            )
+        )
+    if chemical_additions:
+        sections.append(
+            "\n".join(
+                ["### Chemical additions"]
+                + [f"- {_chemical_line(record)}" for record in chemical_additions]
+            )
+        )
+
+    return "\n\n".join(sections)
+
+
+def _water_test_line(record: dict[str, Any]) -> str:
+    """Return one markdown line for a water test record."""
+    readings = ", ".join(
+        f"{_label_for(reading)} {_format_number(value)}"
+        for reading, value in (record.get("readings") or {}).items()
+    )
+    return ": ".join(
+        part
+        for part in (
+            _date_label(record.get("event_timestamp")),
+            readings or "Test logged",
+        )
+        if part
+    )
+
+
+def _chemical_line(record: dict[str, Any]) -> str:
+    """Return one markdown line for a chemical addition record."""
+    return ": ".join(
+        part
+        for part in (
+            _date_label(record.get("event_timestamp")),
+            record.get("summary") or _chemical_summary(record),
+        )
+        if part
+    )
+
+
+def _chemical_summary(record: dict[str, Any]) -> str:
+    """Return a short chemical addition summary."""
+    return (
+        f"{record.get('chemical')}: "
+        f"{_format_number(record.get('amount'))} {record.get('unit')}"
+    )
+
+
+def _label_for(value: str) -> str:
+    """Return a display label for a stored enum value."""
+    if value in SELECT_LABELS:
+        return SELECT_LABELS[value]
+    return str(value).replace("_", " ").title()
+
+
+def _format_number(value: Any) -> str:
+    """Format a number compactly for dashboard text."""
+    try:
+        number = float(value)
+    except TypeError, ValueError:
+        return str(value)
+    if number.is_integer():
+        return str(int(number))
+    return f"{number:.2f}".rstrip("0").rstrip(".")
+
+
+def _date_label(timestamp: Any) -> str:
+    """Return a short local datetime label."""
+    if not timestamp:
+        return ""
+    parsed = dt_util.parse_datetime(str(timestamp))
+    if parsed is None:
+        return str(timestamp)
+    return dt_util.as_local(parsed).strftime("%b %d, %I:%M %p").replace(" 0", " ")
+
+
+def _numeric_or_original(value: Any) -> Any:
+    """Return a numeric value when possible for service data."""
+    try:
+        number = float(value)
+    except TypeError, ValueError:
+        return value
+    return int(number) if number.is_integer() else number
+
+
+def _compact_object(value: dict[str, Any]) -> dict[str, Any]:
+    """Drop empty optional service data."""
+    return {key: item for key, item in value.items() if item is not None and item != ""}
 
 
 def _number(minimum: float | None = None, maximum: float | None = None):
