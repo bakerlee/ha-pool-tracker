@@ -26,6 +26,12 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     SERVICE_GET_PREDICTION,
     SERVICE_LOG_CHEMICAL_ADDITION,
     SERVICE_LOG_WATER_TEST,
+    WATER_READING_CYA,
+    WATER_READING_FREE_CHLORINE,
+    WATER_READING_PH,
+    WATER_READING_TOTAL_ALKALINITY,
+    WATER_READING_TOTAL_CHLORINE,
+    WATER_READING_TOTAL_HARDNESS,
     WATER_TESTING_METHOD,
 )
 
@@ -94,6 +100,47 @@ async def test_setup_defaults_missing_pool_profile_fields(hass) -> None:
         == "strips"
     )
     assert entry.runtime_data.pool_profiles["pool"][CONF_TRACKED_METRICS]
+
+
+async def test_log_water_test_stores_full_agent_payload(hass) -> None:
+    """Agent-submitted water tests store every explicit reading."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id="pool",
+        data={CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"},
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_WATER_TEST,
+        {
+            "source": "openclaw",
+            WATER_READING_FREE_CHLORINE: 1,
+            WATER_READING_TOTAL_CHLORINE: 1,
+            WATER_READING_PH: 7.8,
+            WATER_READING_TOTAL_ALKALINITY: 120,
+            WATER_READING_TOTAL_HARDNESS: 250,
+            WATER_READING_CYA: 0,
+        },
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    stored = entry.runtime_data.store.records("pool")[0]
+    assert stored["source"] == "openclaw"
+    assert stored["readings"] == {
+        WATER_READING_FREE_CHLORINE: {"value": 1.0, "unit": "ppm"},
+        WATER_READING_TOTAL_CHLORINE: {"value": 1.0, "unit": "ppm"},
+        WATER_READING_PH: {"value": 7.8, "unit": "pH"},
+        WATER_READING_TOTAL_ALKALINITY: {"value": 120.0, "unit": "ppm"},
+        WATER_READING_TOTAL_HARDNESS: {"value": 250.0, "unit": "ppm"},
+        WATER_READING_CYA: {"value": 0.0, "unit": "ppm"},
+    }
 
 
 async def test_options_flow_opens_for_existing_pool(hass) -> None:
