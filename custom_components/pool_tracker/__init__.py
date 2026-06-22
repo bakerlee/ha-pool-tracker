@@ -263,13 +263,12 @@ def _pool_log_states_for_hass(hass: HomeAssistant) -> list[Any]:
 
 
 def _is_prediction_state(state: Any) -> bool:
-    """Return whether a state exposes Pool Tracker prediction chart attrs."""
+    """Return whether a state exposes a Pool Tracker prediction sensor."""
     attrs = state.attributes
     return (
         state.entity_id.startswith("sensor.")
-        and isinstance(attrs.get("series"), list)
-        and isinstance(attrs.get("actuals"), list)
-        and isinstance(attrs.get("chemical_additions"), list)
+        and attrs.get("prediction_sensor") is True
+        and isinstance(attrs.get("prediction_reading"), str)
     )
 
 

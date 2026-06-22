@@ -90,9 +90,8 @@ async def test_frontend_panel_generates_editable_lovelace_cards(hass) -> None:
             "pool_id": "pool",
             "pool_name": "Pool",
             "tracked_metrics": ["free_chlorine"],
-            "series": [],
-            "actuals": [],
-            "chemical_additions": [],
+            "prediction_sensor": True,
+            "prediction_reading": "free_chlorine",
             "recent_water_tests": [
                 {
                     "event_timestamp": "2026-06-15T18:30:00+00:00",
@@ -189,9 +188,8 @@ async def test_frontend_panel_persists_user_edited_lovelace_config(hass) -> None
         {
             "pool_id": "pool",
             "tracked_metrics": ["ph"],
-            "series": [],
-            "actuals": [],
-            "chemical_additions": [],
+            "prediction_sensor": True,
+            "prediction_reading": "ph",
         },
     )
 
@@ -225,6 +223,8 @@ def test_frontend_module_registers_dashboard_strategy_and_lovelace_card() -> Non
     assert "tracked_metrics" in module
     assert "No prediction charts for enabled metrics." in module
     assert 'callService("pool_tracker", service, payload)' in module
+    assert 'callService(\n        "pool_tracker",\n        "get_prediction"' in module
+    assert "prediction_sensor" in module
     assert "window.customCards.push" in module
     assert "window.customStrategies.push" in module
 

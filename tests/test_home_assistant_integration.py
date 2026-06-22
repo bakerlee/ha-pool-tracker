@@ -179,9 +179,14 @@ async def test_fresh_pool_chlorine_sensors_start_unknown(hass) -> None:
     assert free_chlorine.state == "unknown"
     assert predicted.state == "unknown"
     assert predicted.attributes["pool_id"] == "pool"
+    assert predicted.attributes["prediction_sensor"] is True
+    assert predicted.attributes["prediction_reading"] == "free_chlorine"
     assert predicted.attributes["recent_water_tests"] == []
     assert predicted.attributes["recent_chemical_additions"] == []
     assert predicted.attributes["quick_chemical_additions"] == []
+    assert "series" not in predicted.attributes
+    assert "actuals" not in predicted.attributes
+    assert "chemical_additions" not in predicted.attributes
 
 
 async def test_disabled_metrics_do_not_create_reading_or_prediction_sensors(
@@ -324,15 +329,16 @@ async def test_prediction_sensor_updates_after_water_test_and_context_change(
     state = _sensor_state(hass, "free_chlorine_predicted")
     assert state is not None
     assert state.state != "unknown"
-    assert state.attributes["model_inputs"]["sunlight"] == 0.0
-    assert state.attributes["series"]
-    assert state.attributes["actuals"]
-    assert state.attributes["chemical_additions"] == []
+    assert "model_inputs" not in state.attributes
+    assert "series" not in state.attributes
+    assert "actuals" not in state.attributes
+    assert "chemical_additions" not in state.attributes
 
     prediction = await _get_prediction(hass, state.entity_id)
-    assert prediction["series"] == state.attributes["series"]
-    assert prediction["actuals"] == state.attributes["actuals"]
-    assert prediction["chemical_additions"] == state.attributes["chemical_additions"]
+    assert prediction["model_inputs"]["sunlight"] == 0.0
+    assert prediction["series"]
+    assert prediction["actuals"]
+    assert prediction["chemical_additions"] == []
 
     ph_state = _sensor_state(hass, "ph_predicted")
     assert ph_state is not None
@@ -340,20 +346,16 @@ async def test_prediction_sensor_updates_after_water_test_and_context_change(
         hass, [state.entity_id, ph_state.entity_id]
     )
     assert set(response) == {state.entity_id, ph_state.entity_id}
-    assert (
-        response[state.entity_id]["prediction"]["series"] == state.attributes["series"]
-    )
-    assert (
-        response[ph_state.entity_id]["prediction"]["series"]
-        == ph_state.attributes["series"]
-    )
+    assert response[state.entity_id]["prediction"]["series"] == prediction["series"]
+    assert response[ph_state.entity_id]["prediction"]["series"]
 
     hass.states.async_set("weather.home", "sunny", {"uv_index": 10})
     await hass.async_block_till_done()
 
     updated = _sensor_state(hass, "free_chlorine_predicted")
     assert updated is not None
-    assert updated.attributes["model_inputs"]["sunlight"] == 1.0
+    updated_prediction = await _get_prediction(hass, updated.entity_id)
+    assert updated_prediction["model_inputs"]["sunlight"] == 1.0
 
 
 async def test_prediction_sensor_applies_logged_chlorine_addition(hass) -> None:
@@ -391,8 +393,6 @@ async def test_prediction_sensor_applies_logged_chlorine_addition(hass) -> None:
     state = _sensor_state(hass, "free_chlorine_predicted")
     assert state is not None
     assert float(state.state) > 0
-    assert state.attributes["model_inputs"]["chemical_additions"]
-    assert state.attributes["chemical_additions"]
     assert state.attributes["recent_chemical_additions"][0]["summary"] == (
         "dichlor: 1 Tbsp"
     )
@@ -404,6 +404,9 @@ async def test_prediction_sensor_applies_logged_chlorine_addition(hass) -> None:
             "summary": "dichlor: 1 Tbsp",
         }
     ]
+    prediction = await _get_prediction(hass, state.entity_id)
+    assert prediction["model_inputs"]["chemical_additions"]
+    assert prediction["chemical_additions"]
 
 
 async def test_prediction_sensor_applies_chlorine_addition_without_prior_reading(

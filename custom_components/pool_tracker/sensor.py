@@ -120,14 +120,14 @@ def _prediction_value(entity: PoolTrackerSensor, reading: str) -> Any:
 
 def _prediction_attrs(entity: PoolTrackerSensor, reading: str) -> dict[str, Any] | None:
     prediction = entity.prediction(reading)
+    base_attrs = _log_attrs(entity) | {
+        "unit": WATER_TEST_READING_UNITS[reading],
+        "prediction_sensor": True,
+        "prediction_reading": reading,
+    }
     if prediction is None:
-        return _log_attrs(entity) | {
-            "unit": WATER_TEST_READING_UNITS[reading],
-            "series": [],
-            "actuals": [],
-            "chemical_additions": [],
-        }
-    return _log_attrs(entity) | {
+        return base_attrs
+    return base_attrs | {
         "unit": prediction.unit,
         "as_of": prediction.as_of,
         "last_actual_value": prediction.last_actual_value,
@@ -135,10 +135,6 @@ def _prediction_attrs(entity: PoolTrackerSensor, reading: str) -> dict[str, Any]
         "uncertainty": prediction.uncertainty,
         "lower_bound": prediction.lower_bound,
         "upper_bound": prediction.upper_bound,
-        "model_inputs": prediction.model_inputs,
-        "series": prediction.series,
-        "actuals": prediction.actuals,
-        "chemical_additions": prediction.chemical_additions,
     }
 
 

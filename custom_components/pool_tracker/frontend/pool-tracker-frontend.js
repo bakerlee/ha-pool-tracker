@@ -76,17 +76,22 @@ class PoolTrackerGraphCard extends HTMLElement {
     this._selectedEntityId = undefined;
     this._message = undefined;
     this._pending = false;
+    this._predictionDetails = {};
+    this._predictionErrors = {};
+    this._predictionRequests = new Set();
   }
 
   setConfig(config) {
     this._config = config || {};
     this._selectedEntityId = this._config.entity;
     this._render({ preserveFormState: false });
+    this._loadPredictionDetails(this._predictionStates());
   }
 
   set hass(hass) {
     this._hass = hass;
     this._render();
+    this._loadPredictionDetails(this._predictionStates());
   }
 
   getCardSize() {
@@ -117,6 +122,79 @@ class PoolTrackerGraphCard extends HTMLElement {
     return states.sort((left, right) =>
       stateTitle(left).localeCompare(stateTitle(right)),
     );
+  }
+
+  _predictionForState(state) {
+    const detail = this._predictionDetails[state.entity_id];
+    if (!detail || detail.lastUpdated !== stateRevision(state)) {
+      return undefined;
+    }
+    return detail.prediction;
+  }
+
+  _predictionError(state) {
+    const detail = this._predictionErrors[state.entity_id];
+    if (!detail || detail.lastUpdated !== stateRevision(state)) {
+      return undefined;
+    }
+    return detail.message;
+  }
+
+  async _loadPredictionDetails(states) {
+    if (!this._hass || typeof this._hass.callService !== "function") {
+      return;
+    }
+    const missing = states.filter((state) => {
+      const detail = this._predictionDetails[state.entity_id];
+      const error = this._predictionErrors[state.entity_id];
+      const revision = stateRevision(state);
+      return (
+        (!detail || detail.lastUpdated !== revision) &&
+        (!error || error.lastUpdated !== revision) &&
+        !this._predictionRequests.has(state.entity_id)
+      );
+    });
+    if (!missing.length) {
+      return;
+    }
+
+    for (const state of missing) {
+      this._predictionRequests.add(state.entity_id);
+    }
+    try {
+      const entityIds = missing.map((state) => state.entity_id);
+      const response = await this._hass.callService(
+        "pool_tracker",
+        "get_prediction",
+        { entity_id: entityIds },
+        undefined,
+        true,
+        true,
+      );
+      if (!response) {
+        throw new Error("No prediction response returned.");
+      }
+      for (const state of missing) {
+        const latest = this._hass.states[state.entity_id] || state;
+        this._predictionDetails[state.entity_id] = {
+          lastUpdated: stateRevision(latest),
+          prediction: response[state.entity_id]?.prediction ?? null,
+        };
+        delete this._predictionErrors[state.entity_id];
+      }
+    } catch (error) {
+      for (const state of missing) {
+        this._predictionErrors[state.entity_id] = {
+          lastUpdated: stateRevision(state),
+          message: error.message || "Prediction details unavailable.",
+        };
+      }
+    } finally {
+      for (const state of missing) {
+        this._predictionRequests.delete(state.entity_id);
+      }
+      this._render();
+    }
   }
 
   _poolLogStates() {
@@ -223,6 +301,8 @@ class PoolTrackerGraphCard extends HTMLElement {
   }
 
   _renderReading(state) {
+    const prediction = this._predictionForState(state);
+    const predictionError = this._predictionError(state);
     return `
       <section class="reading-chart">
         <div class="reading-header">
@@ -235,8 +315,8 @@ class PoolTrackerGraphCard extends HTMLElement {
             <div class="state-label">Predicted now</div>
           </div>
         </div>
-        ${renderChart(state)}
-        ${renderMeta(state)}
+        ${renderChart(state, prediction, predictionError)}
+        ${renderMeta(state, prediction)}
       </section>
     `;
   }
@@ -737,9 +817,8 @@ function isPredictionState(state) {
   return (
     state &&
     state.entity_id.startsWith("sensor.") &&
-    Array.isArray(state.attributes?.series) &&
-    Array.isArray(state.attributes?.actuals) &&
-    Array.isArray(state.attributes?.chemical_additions)
+    state.attributes?.prediction_sensor === true &&
+    typeof state.attributes?.prediction_reading === "string"
   );
 }
 
@@ -756,10 +835,17 @@ function poolTitle(state) {
   return state?.attributes?.pool_name || stateTitle(state);
 }
 
-function renderChart(state) {
-  const series = state.attributes.series || [];
-  const actuals = state.attributes.actuals || [];
-  const chemicals = (state.attributes.chemical_additions || []).filter(
+function renderChart(state, prediction, error) {
+  if (error) {
+    return `<div class="empty">${escapeHtml(error)}</div>`;
+  }
+  if (prediction === undefined && state.state !== "unknown") {
+    return `<div class="empty">Loading chart data.</div>`;
+  }
+  const attrs = prediction || state.attributes || {};
+  const series = attrs.series || [];
+  const actuals = attrs.actuals || [];
+  const chemicals = (attrs.chemical_additions || []).filter(
     (point) => point.value !== undefined,
   );
   if (!series.length) {
@@ -790,7 +876,7 @@ function renderChart(state) {
   const valuePad = Math.max((maxValue - minValue) * 0.12, 0.1);
   const yMin = Math.max(0, minValue - valuePad);
   const yMax = maxValue + valuePad;
-  const currentTime = new Date(state.attributes.as_of || Date.now()).getTime();
+  const currentTime = new Date(attrs.as_of || Date.now()).getTime();
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
   const x = (timestamp) => {
@@ -915,10 +1001,10 @@ function pathFor(points, x, y) {
     .join(" ");
 }
 
-function renderMeta(state) {
-  const attrs = state.attributes || {};
-  const actuals = attrs.actuals || [];
-  const chemicals = attrs.chemical_additions || [];
+function renderMeta(state, prediction) {
+  const attrs = prediction || state.attributes || {};
+  const actuals = prediction?.actuals || [];
+  const chemicals = prediction?.chemical_additions || [];
   const uncertainty =
     attrs.uncertainty === undefined ? "" : `±${formatNumber(attrs.uncertainty)}`;
   const unit = attrs.unit || attrs.unit_of_measurement || "";
@@ -946,6 +1032,10 @@ function valueTicks(min, max) {
 
 function stateTitle(state) {
   return state?.attributes?.friendly_name || state?.entity_id || "Pool reading";
+}
+
+function stateRevision(state) {
+  return state?.last_updated || state?.last_changed;
 }
 
 function cleanTitle(state) {
