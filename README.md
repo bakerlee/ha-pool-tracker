@@ -2,7 +2,7 @@
 
 Pool Tracker is a free, local-first Home Assistant custom integration for manual pool maintenance logging and level prediction.
 
-It stores an append-only event log for water tests and chemical additions, exposes read-only derived sensors with uncertainty-aware predictions, and registers narrow Home Assistant service actions that dashboards, automations, OpenClaw, or other agents can call.
+It stores an event log for water tests and chemical additions, exposes read-only derived sensors with uncertainty-aware predictions, and registers narrow Home Assistant service actions that dashboards, automations, OpenClaw, or other agents can call.
 
 ## Scope
 
@@ -79,7 +79,7 @@ These sensors are display surfaces. They are not mutable input fields.
 
 ## Predictions
 
-Prediction sensors estimate numeric water-test levels from the append-only event log. They currently cover free chlorine, pH, total alkalinity, and CYA/stabilizer.
+Prediction sensors estimate numeric water-test levels from the event log. They currently cover free chlorine, pH, total alkalinity, and CYA/stabilizer.
 
 Each prediction sensor state is the current estimated value. Attributes include:
 
@@ -219,7 +219,27 @@ data:
   source: agent
 ```
 
-Both service actions return a `record_id` when called with Home Assistant service response support, and fire a `pool_tracker_record_created` event containing the record id, pool id, record type, event timestamp, and creation timestamp.
+Both log service actions return a `record_id` when called with Home Assistant service response support, and fire a `pool_tracker_record_created` event containing the record id, pool id, record type, event timestamp, and creation timestamp.
+
+### `pool_tracker.delete_record`
+
+Deletes one Pool Tracker record by exact `record_id`. This is intended for
+corrections such as accidental dashboard taps. Deleting a record removes it from
+Pool Tracker's source ledger and updates derived sensors and prediction data.
+
+`confirm` must be `true`. `pool_id` is optional unless a manually supplied
+record id exists in more than one pool.
+
+```yaml
+service: pool_tracker.delete_record
+data:
+  record_id: 3be90f44f47645929880ea7b0b89d86a
+  confirm: true
+```
+
+Successful deletes return the deleted `record_id`, `pool_id`, and record `type`,
+and fire a `pool_tracker_record_deleted` event. Home Assistant Recorder history
+for earlier entity/event state changes is not rewritten.
 
 ## OpenClaw Examples
 

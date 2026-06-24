@@ -167,6 +167,24 @@
         }
       }
     },
+    "delete_record": {
+      "name": "Delete record",
+      "description": "Delete one Pool Tracker record by record ID.",
+      "fields": {
+        "pool_id": {
+          "name": "Pool ID",
+          "description": "Optional pool identifier when the record ID needs disambiguation."
+        },
+        "record_id": {
+          "name": "Record ID",
+          "description": "Exact Pool Tracker record ID to delete."
+        },
+        "confirm": {
+          "name": "Confirm",
+          "description": "Must be enabled to delete the record."
+        }
+      }
+    },
     "get_prediction": {
       "name": "Get prediction",
       "description": "Return the full prediction series, actuals, and model inputs for a prediction sensor."

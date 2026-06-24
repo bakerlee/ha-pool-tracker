@@ -239,6 +239,9 @@ class PoolTrackerGraphCard extends HTMLElement {
     for (const button of this.shadowRoot.querySelectorAll("button[data-quick-chemical]")) {
       button.addEventListener("click", () => this._repeatChemicalAddition(button));
     }
+    for (const button of this.shadowRoot.querySelectorAll("button[data-delete-record]")) {
+      button.addEventListener("click", () => this._deleteRecord(button));
+    }
   }
 
   _captureFormState() {
@@ -326,10 +329,60 @@ class PoolTrackerGraphCard extends HTMLElement {
     return `
       <div class="log-tools">
         ${this._message ? `<div class="message ${escapeHtml(this._message.type)}">${escapeHtml(this._message.text)}</div>` : ""}
+        ${this._renderRecentRecords(attrs)}
         <div class="forms">
           ${this._renderWaterTestForm(attrs)}
           ${this._renderChemicalForm(attrs)}
         </div>
+      </div>
+    `;
+  }
+
+  _renderRecentRecords(attrs) {
+    const waterTests = attrs.recent_water_tests || [];
+    const chemicalAdditions = attrs.recent_chemical_additions || [];
+    if (!waterTests.length && !chemicalAdditions.length) {
+      return "";
+    }
+    return `
+      <div class="recent-records">
+        ${this._renderRecordSection("Water tests", waterTests, waterTestLine, attrs.pool_id)}
+        ${this._renderRecordSection("Chemical additions", chemicalAdditions, chemicalLine, attrs.pool_id)}
+      </div>
+    `;
+  }
+
+  _renderRecordSection(title, records, lineFn, poolId) {
+    if (!records.length) {
+      return "";
+    }
+    return `
+      <section class="record-section">
+        <div class="section-title">${escapeHtml(title)}</div>
+        <div class="record-list">
+          ${records.map((record) => this._renderRecordRow(record, lineFn, poolId)).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  _renderRecordRow(record, lineFn, poolId) {
+    const recordId = record.record_id || "";
+    return `
+      <div class="record-row">
+        <span>${escapeHtml(lineFn(record))}</span>
+        <button
+          type="button"
+          class="icon-button"
+          data-delete-record
+          data-record-id="${escapeHtml(recordId)}"
+          data-pool-id="${escapeHtml(poolId || "")}"
+          title="Delete record"
+          aria-label="Delete record"
+          ${!recordId || this._pending ? "disabled" : ""}
+        >
+          <ha-icon icon="mdi:delete-outline"></ha-icon>
+        </button>
       </div>
     `;
   }
@@ -528,6 +581,21 @@ class PoolTrackerGraphCard extends HTMLElement {
       payload,
       `${chemicalSummary(payload)} logged.`,
     );
+  }
+
+  async _deleteRecord(button) {
+    const recordId = button.dataset.recordId;
+    if (!recordId || !window.confirm("Delete this Pool Tracker record?")) {
+      return;
+    }
+    const payload = {
+      record_id: recordId,
+      confirm: true,
+    };
+    if (button.dataset.poolId) {
+      payload.pool_id = button.dataset.poolId;
+    }
+    await this._callService("delete_record", payload, "Record deleted.");
   }
 
   async _callService(service, payload, successMessage, form) {
@@ -1287,6 +1355,47 @@ function styles() {
       line-height: 20px;
       margin-bottom: 10px;
     }
+    .recent-records {
+      border-bottom: 1px solid ${COLORS.grid};
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+    }
+    .record-section {
+      min-width: 0;
+    }
+    .record-list {
+      display: grid;
+      gap: 6px;
+    }
+    .record-row {
+      align-items: center;
+      display: grid;
+      gap: 8px;
+      grid-template-columns: minmax(0, 1fr) 40px;
+      min-height: 40px;
+    }
+    .record-row span {
+      color: ${COLORS.text};
+      font-size: var(--pool-tracker-primary-font-size);
+      line-height: 20px;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .icon-button {
+      align-items: center;
+      border: 1px solid ${COLORS.grid};
+      border-radius: 6px;
+      display: inline-flex;
+      justify-content: center;
+      min-height: 40px;
+      width: 40px;
+    }
+    .icon-button ha-icon {
+      --mdc-icon-size: 18px;
+    }
     .quick-actions {
       display: flex;
       flex-wrap: wrap;
@@ -1425,6 +1534,7 @@ function styles() {
       text-align: center;
     }
     @media (max-width: 720px) {
+      .recent-records,
       .forms,
       .field-grid,
       .field-grid.readings,

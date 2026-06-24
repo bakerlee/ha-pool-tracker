@@ -241,6 +241,23 @@ log_chemical_addition:
         text:
           multiline: true
 
+delete_record:
+  fields:
+    pool_id:
+      example: pool
+      selector:
+        text:
+    record_id:
+      required: true
+      example: 3be90f44f47645929880ea7b0b89d86a
+      selector:
+        text:
+    confirm:
+      required: true
+      example: true
+      selector:
+        boolean:
+
 get_prediction:
   target:
     entity:

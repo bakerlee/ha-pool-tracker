@@ -48,6 +48,63 @@ async def test_storage_append_and_read_behavior(store: PoolTrackerStore) -> None
     assert stored["type"] == RECORD_TYPE_WATER_TEST
 
 
+async def test_storage_delete_record_removes_one_matching_record(
+    store: PoolTrackerStore,
+) -> None:
+    """A targeted delete removes exactly one stored record."""
+    deleted_record = await store.async_append(
+        build_chemical_addition_record(
+            pool_id="pool",
+            chemical="dichlor",
+            amount=1,
+            unit="Tbsp",
+            record_id="delete-me",
+        )
+    )
+    kept_record = await store.async_append(
+        build_water_test_record(
+            pool_id="pool",
+            readings={WATER_READING_PH: 7.2},
+            record_id="keep-me",
+        )
+    )
+
+    deleted = await store.async_delete_record("delete-me")
+
+    assert deleted == deleted_record
+    assert store.records("pool") == [kept_record]
+    assert await store.async_delete_record("delete-me") is None
+
+
+async def test_storage_delete_record_rejects_ambiguous_record_ids(
+    store: PoolTrackerStore,
+) -> None:
+    """Duplicate record ids require a pool id to make deletion explicit."""
+    await store.async_append(
+        build_water_test_record(
+            pool_id="pool-a",
+            readings={WATER_READING_PH: 7.2},
+            record_id="duplicate",
+        )
+    )
+    pool_b_record = await store.async_append(
+        build_water_test_record(
+            pool_id="pool-b",
+            readings={WATER_READING_PH: 7.6},
+            record_id="duplicate",
+        )
+    )
+
+    with pytest.raises(ValueError, match="matched multiple records"):
+        await store.async_delete_record("duplicate")
+
+    deleted = await store.async_delete_record("duplicate", pool_id="pool-b")
+
+    assert deleted == pool_b_record
+    assert store.records("pool-a")[0]["id"] == "duplicate"
+    assert store.records("pool-b") == []
+
+
 async def test_partial_water_test_allows_subset(store: PoolTrackerStore) -> None:
     """A water test may include only one reading."""
     record = build_water_test_record(

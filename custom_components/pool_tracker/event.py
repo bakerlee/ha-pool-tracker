@@ -64,7 +64,9 @@ class PoolRecordEvent(EventEntity):
         self.async_on_remove(self.store.async_listen(self._handle_store_update))
 
     @callback
-    def _handle_store_update(self, record: PoolRecord) -> None:
+    def _handle_store_update(self, record: PoolRecord | None) -> None:
+        if record is None:
+            return
         if (
             record.get("type") != self._record_type
             or record.get("pool_id") != self.pool_id

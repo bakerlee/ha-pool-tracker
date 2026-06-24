@@ -28,11 +28,11 @@ class StoreBackend(Protocol):
         """Save storage data."""
 
 
-Listener = Callable[[PoolRecord], None]
+Listener = Callable[[PoolRecord | None], None]
 
 
 class PoolTrackerStore:
-    """Append-only event store with an explicit migration boundary."""
+    """Persistent event store with an explicit migration boundary."""
 
     def __init__(self, backend: StoreBackend) -> None:
         self._backend = backend
@@ -77,8 +77,34 @@ class PoolTrackerStore:
         self._notify_listeners(stored)
         return stored
 
+    async def async_delete_record(
+        self, record_id: str, pool_id: str | None = None
+    ) -> PoolRecord | None:
+        """Delete a single record by id and persist the change."""
+        matches: list[tuple[list[PoolRecord], int, PoolRecord]] = []
+        for candidate_pool_id, pool in self.data.get("pools", {}).items():
+            if pool_id is not None and candidate_pool_id != pool_id:
+                continue
+            for index, record in enumerate(pool.get("records", [])):
+                if record.get("id") == record_id:
+                    matches.append((pool["records"], index, record))
+
+        if not matches:
+            return None
+        if len(matches) > 1:
+            raise ValueError(
+                f"Record id {record_id!r} matched multiple records; provide pool_id."
+            )
+
+        records, index, record = matches[0]
+        deleted = deepcopy(record)
+        del records[index]
+        await self._backend.async_save(self.data)
+        self._notify_listeners(None)
+        return deleted
+
     def async_listen(self, listener: Listener) -> Callable[[], None]:
-        """Listen for appended records."""
+        """Listen for record store changes."""
         self._listeners.append(listener)
 
         def remove_listener() -> None:
@@ -92,7 +118,7 @@ class PoolTrackerStore:
         pool.setdefault("records", [])
         return pool
 
-    def _notify_listeners(self, record: PoolRecord) -> None:
+    def _notify_listeners(self, record: PoolRecord | None) -> None:
         for listener in list(self._listeners):
             listener(record)
 

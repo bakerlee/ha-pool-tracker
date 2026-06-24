@@ -23,6 +23,7 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_TYPICALLY_COVERED,
     CONF_WEATHER_ENTITY_ID,
     DOMAIN,
+    SERVICE_DELETE_RECORD,
     SERVICE_GET_PREDICTION,
     SERVICE_LOG_CHEMICAL_ADDITION,
     SERVICE_LOG_WATER_TEST,
@@ -407,6 +408,93 @@ async def test_prediction_sensor_applies_logged_chlorine_addition(hass) -> None:
     prediction = await _get_prediction(hass, state.entity_id)
     assert prediction["model_inputs"]["chemical_additions"]
     assert prediction["chemical_additions"]
+
+
+async def test_delete_record_service_removes_logged_record_and_updates_sensors(
+    hass,
+) -> None:
+    """Deleting a record removes it from the source ledger and derived sensors."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Spa",
+        unique_id="spa",
+        data={
+            CONF_POOL_ID: "spa",
+            CONF_POOL_NAME: "Spa",
+            CONF_POOL_VOLUME: 400,
+            CONF_POOL_VOLUME_UNIT: "gal",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_WATER_TEST,
+        {"free_chlorine": 0.0},
+        blocking=True,
+    )
+    response = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_CHEMICAL_ADDITION,
+        {"chemical": "dichlor", "amount": 1, "unit": "Tbsp"},
+        blocking=True,
+        return_response=True,
+    )
+    await hass.async_block_till_done()
+    record_id = response["record_id"]
+
+    state = _sensor_state(hass, "free_chlorine_predicted")
+    assert state is not None
+    assert state.attributes["recent_chemical_additions"][0]["record_id"] == record_id
+
+    delete_response = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_DELETE_RECORD,
+        {"record_id": record_id, "confirm": True},
+        blocking=True,
+        return_response=True,
+    )
+    await hass.async_block_till_done()
+
+    assert delete_response == {
+        "record_id": record_id,
+        "pool_id": "spa",
+        "type": "chemical_addition",
+    }
+    assert [record["type"] for record in entry.runtime_data.store.records("spa")] == [
+        "water_test"
+    ]
+    updated = _sensor_state(hass, "free_chlorine_predicted")
+    assert updated is not None
+    assert updated.attributes["recent_chemical_additions"] == []
+    assert updated.attributes["quick_chemical_additions"] == []
+    prediction = await _get_prediction(hass, updated.entity_id)
+    assert prediction["chemical_additions"] == []
+
+
+async def test_delete_record_service_rejects_unknown_record(hass) -> None:
+    """Deleting a missing record reports a validation error."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id="pool",
+        data={CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"},
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    with pytest.raises(ServiceValidationError, match="No Pool Tracker record"):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_DELETE_RECORD,
+            {"record_id": "missing", "confirm": True},
+            blocking=True,
+        )
 
 
 async def test_prediction_sensor_applies_chlorine_addition_without_prior_reading(

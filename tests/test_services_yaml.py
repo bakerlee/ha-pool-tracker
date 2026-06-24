@@ -54,3 +54,16 @@ def test_water_test_service_metadata_includes_expanded_metrics() -> None:
         "water_temperature",
     ):
         assert "number" in fields[field]["selector"]
+
+
+def test_delete_record_service_requires_record_id_and_confirmation() -> None:
+    """Delete metadata should expose an explicit confirmation control."""
+    services = yaml.safe_load(
+        Path("custom_components/pool_tracker/services.yaml").read_text()
+    )
+
+    fields = services["delete_record"]["fields"]
+    assert fields["record_id"]["required"] is True
+    assert "text" in fields["record_id"]["selector"]
+    assert fields["confirm"]["required"] is True
+    assert "boolean" in fields["confirm"]["selector"]

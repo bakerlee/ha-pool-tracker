@@ -28,9 +28,11 @@ DEFAULT_TESTING_METHOD = "strips"
 
 SERVICE_LOG_WATER_TEST = "log_water_test"
 SERVICE_LOG_CHEMICAL_ADDITION = "log_chemical_addition"
+SERVICE_DELETE_RECORD = "delete_record"
 SERVICE_GET_PREDICTION = "get_prediction"
 
 EVENT_RECORD_CREATED = f"{DOMAIN}_record_created"
+EVENT_RECORD_DELETED = f"{DOMAIN}_record_deleted"
 EVENT_TYPE_CHEMICAL_ADDITION = "chemical_addition"
 EVENT_TYPE_WATER_TEST = "water_test"
 

@@ -66,7 +66,7 @@ def build_water_test_record(
     record_id: str | None = None,
     created_timestamp: datetime | str | None = None,
 ) -> PoolRecord:
-    """Build an append-only water test record."""
+    """Build a water test record."""
     explicit_readings: dict[str, dict[str, Any]] = {}
     for field in WATER_TEST_FIELDS:
         if field not in readings or readings[field] in (None, ""):
@@ -109,7 +109,7 @@ def build_chemical_addition_record(
     record_id: str | None = None,
     created_timestamp: datetime | str | None = None,
 ) -> PoolRecord:
-    """Build an append-only chemical addition record."""
+    """Build a chemical addition record."""
     chemical = chemical.strip()
     unit = normalize_chemical_amount_unit(unit)
     if not chemical:

@@ -94,12 +94,14 @@ async def test_frontend_panel_generates_editable_lovelace_cards(hass) -> None:
             "prediction_reading": "free_chlorine",
             "recent_water_tests": [
                 {
+                    "record_id": "water-record",
                     "event_timestamp": "2026-06-15T18:30:00+00:00",
                     "readings": {"free_chlorine": 3.0},
                 }
             ],
             "recent_chemical_additions": [
                 {
+                    "record_id": "chemical-record",
                     "event_timestamp": "2026-06-15T19:00:00+00:00",
                     "chemical": "dichlor",
                     "amount": 1,
@@ -217,7 +219,11 @@ def test_frontend_module_registers_dashboard_strategy_and_lovelace_card() -> Non
     assert 'data-log="water-test"' in module
     assert 'data-log="chemical-addition"' in module
     assert "data-quick-chemical" in module
+    assert "data-delete-record" in module
     assert "_renderQuickChemicalActions(attrs.quick_chemical_additions || [])" in module
+    assert "_renderRecentRecords(attrs)" in module
+    assert 'this._callService("delete_record", payload, "Record deleted.")' in module
+    assert "Delete this Pool Tracker record?" in module
     assert "Quick chemicals" not in module
     assert "enabledWaterReadingFields(attrs)" in module
     assert "tracked_metrics" in module
@@ -260,6 +266,20 @@ def test_frontend_preserves_forms_between_home_assistant_updates() -> None:
     assert "_restoreFormState(formState)" in module
     assert 'element.type !== "hidden"' in module
     assert "this._render({ preserveFormState: false })" in module
+
+
+def test_frontend_card_exposes_record_delete_controls() -> None:
+    """The custom card can delete recent records by record id."""
+    module = Path(
+        "custom_components/pool_tracker/frontend/pool-tracker-frontend.js"
+    ).read_text()
+
+    assert "recent_water_tests" in module
+    assert "recent_chemical_additions" in module
+    assert "record.record_id" in module
+    assert 'data-record-id="${escapeHtml(recordId)}"' in module
+    assert 'data-pool-id="${escapeHtml(poolId || "")}"' in module
+    assert "confirm: true" in module
 
 
 def test_frontend_strategy_uses_standard_lovelace_cards() -> None:

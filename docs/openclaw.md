@@ -9,7 +9,7 @@ Agents should call:
 - `pool_tracker.log_water_test`
 - `pool_tracker.log_chemical_addition`
 
-Agents should not write Home Assistant helpers, mutate Pool Tracker sensors, call equipment-control services, or infer dosing advice.
+Agents should not write Home Assistant helpers, mutate Pool Tracker sensors, call equipment-control services, delete records without explicit human correction intent, or infer dosing advice.
 
 ## Water Test
 
@@ -92,6 +92,12 @@ type: water_test
 event_timestamp: "2026-06-15T00:30:00+00:00"
 created_timestamp: "2026-06-16T14:00:00+00:00"
 ```
+
+`pool_tracker.delete_record` is available for explicit correction flows. It
+requires the exact `record_id` and `confirm: true`, returns the deleted
+`record_id`, `pool_id`, and record `type`, and fires
+`pool_tracker_record_deleted`. It must not be used as a normal logging or
+automation cleanup path.
 
 ## Safety Boundary
 

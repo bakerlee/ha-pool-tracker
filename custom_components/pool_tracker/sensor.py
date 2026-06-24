@@ -363,7 +363,7 @@ async def async_setup_entry(
 
 
 class PoolTrackerSensor(SensorEntity):
-    """A read-only sensor derived from the append-only event log."""
+    """A read-only sensor derived from the event log."""
 
     entity_description: PoolSensorDescription
     _attr_has_entity_name = True
@@ -404,7 +404,7 @@ class PoolTrackerSensor(SensorEntity):
             )
 
     @callback
-    def _handle_store_update(self, record: PoolRecord) -> None:
+    def _handle_store_update(self, record: PoolRecord | None) -> None:
         self._prediction_cache.clear()
         self.async_write_ha_state()
 

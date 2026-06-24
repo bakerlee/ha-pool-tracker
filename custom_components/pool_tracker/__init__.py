@@ -38,9 +38,11 @@ from .const import (
     DEFAULT_TESTING_METHOD,
     DOMAIN,
     EVENT_RECORD_CREATED,
+    EVENT_RECORD_DELETED,
     NUMERIC_WATER_READINGS,
     PLATFORMS,
     SELECT_LABELS,
+    SERVICE_DELETE_RECORD,
     SERVICE_LOG_CHEMICAL_ADDITION,
     SERVICE_LOG_WATER_TEST,
     WATER_CLARITY_OPTIONS,
@@ -498,6 +500,16 @@ def _chemical_addition_service_schema():
     )
 
 
+def _delete_record_service_schema():
+    return vol.Schema(
+        {
+            vol.Optional(CONF_POOL_ID): cv.string,
+            vol.Required("record_id"): cv.string,
+            vol.Required("confirm"): vol.All(cv.boolean, vol.Equal(True)),
+        }
+    )
+
+
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Set up Pool Tracker service actions."""
     event_store = PoolTrackerStore(create_home_assistant_store(hass))
@@ -539,6 +551,25 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         _fire_record_created(hass, record)
         return {"record_id": record["id"]}
 
+    async def handle_delete_record(call: ServiceCall) -> dict[str, str]:
+        record_id = call.data["record_id"]
+        try:
+            deleted = await event_store.async_delete_record(
+                record_id, call.data.get(CONF_POOL_ID)
+            )
+        except ValueError as err:
+            raise ServiceValidationError(str(err)) from err
+        if deleted is None:
+            raise ServiceValidationError(
+                f"No Pool Tracker record matches record_id {record_id!r}."
+            )
+        _fire_record_deleted(hass, deleted)
+        return {
+            "record_id": deleted["id"],
+            "pool_id": deleted["pool_id"],
+            "type": deleted["type"],
+        }
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_LOG_WATER_TEST,
@@ -551,6 +582,13 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         SERVICE_LOG_CHEMICAL_ADDITION,
         handle_log_chemical_addition,
         schema=_chemical_addition_service_schema(),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DELETE_RECORD,
+        handle_delete_record,
+        schema=_delete_record_service_schema(),
         supports_response=SupportsResponse.OPTIONAL,
     )
 
@@ -672,6 +710,19 @@ def _pool_profiles_from_entry(
 def _fire_record_created(hass: HomeAssistant, record: dict[str, Any]) -> None:
     hass.bus.async_fire(
         EVENT_RECORD_CREATED,
+        {
+            "record_id": record["id"],
+            "pool_id": record["pool_id"],
+            "type": record["type"],
+            "event_timestamp": record["event_timestamp"],
+            "created_timestamp": record["created_timestamp"],
+        },
+    )
+
+
+def _fire_record_deleted(hass: HomeAssistant, record: dict[str, Any]) -> None:
+    hass.bus.async_fire(
+        EVENT_RECORD_DELETED,
         {
             "record_id": record["id"],
             "pool_id": record["pool_id"],
