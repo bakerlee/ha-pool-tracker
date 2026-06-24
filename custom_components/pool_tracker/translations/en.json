@@ -185,6 +185,16 @@
         }
       }
     },
+    "reset_dashboard": {
+      "name": "Reset dashboard",
+      "description": "Reset the Pool Tracker Lovelace dashboard to the generated default.",
+      "fields": {
+        "confirm": {
+          "name": "Confirm",
+          "description": "Must be enabled to discard saved Pool Tracker dashboard edits."
+        }
+      }
+    },
     "get_prediction": {
       "name": "Get prediction",
       "description": "Return the full prediction series, actuals, and model inputs for a prediction sensor."

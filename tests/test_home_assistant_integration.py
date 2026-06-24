@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 pytest.importorskip("homeassistant")
+vol = pytest.importorskip("voluptuous")
 
+from homeassistant.components.lovelace.const import LOVELACE_DATA  # noqa: E402
 from homeassistant.exceptions import ServiceValidationError  # noqa: E402
 from homeassistant.helpers import device_registry as dr  # noqa: E402
 from homeassistant.helpers import entity_registry as er  # noqa: E402
 from pytest_homeassistant_custom_component.common import MockConfigEntry  # noqa: E402
 
+from custom_components.pool_tracker import FRONTEND_PANEL_URL_PATH  # noqa: E402
 from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_DEFAULT_TESTING_METHOD,
     CONF_POOL_ID,
@@ -27,6 +31,7 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     SERVICE_GET_PREDICTION,
     SERVICE_LOG_CHEMICAL_ADDITION,
     SERVICE_LOG_WATER_TEST,
+    SERVICE_RESET_DASHBOARD,
     WATER_READING_CYA,
     WATER_READING_FREE_CHLORINE,
     WATER_READING_PH,
@@ -495,6 +500,67 @@ async def test_delete_record_service_rejects_unknown_record(hass) -> None:
             {"record_id": "missing", "confirm": True},
             blocking=True,
         )
+
+
+async def test_reset_dashboard_service_requires_confirmation(hass) -> None:
+    """Dashboard reset service rejects accidental calls."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id="pool",
+        data={CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"},
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_RESET_DASHBOARD,
+            {"confirm": False},
+            blocking=True,
+        )
+
+
+async def test_reset_dashboard_service_discards_saved_dashboard_config(hass) -> None:
+    """Dashboard reset service removes saved edits and regenerates the default."""
+    hass.data[LOVELACE_DATA] = SimpleNamespace(dashboards={})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id="pool",
+        data={CONF_POOL_ID: "pool", CONF_POOL_NAME: "Pool"},
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    lovelace_config = hass.data[LOVELACE_DATA].dashboards[FRONTEND_PANEL_URL_PATH]
+    await lovelace_config.async_save(
+        {
+            "title": "Edited",
+            "views": [
+                {"title": "Main", "cards": [{"type": "markdown", "content": "x"}]}
+            ],
+        }
+    )
+
+    response = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_RESET_DASHBOARD,
+        {"confirm": True},
+        blocking=True,
+        return_response=True,
+    )
+
+    assert response == {"dashboard": FRONTEND_PANEL_URL_PATH}
+    regenerated = await lovelace_config.async_load(False)
+    assert regenerated["title"] == "Pool Tracker"
+    assert regenerated["views"][0]["cards"] != [{"type": "markdown", "content": "x"}]
+    assert regenerated["views"][0]["cards"][0]["type"] == "grid"
 
 
 async def test_prediction_sensor_applies_chlorine_addition_without_prior_reading(

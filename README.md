@@ -110,8 +110,6 @@ For chemical additions, Pool Tracker uses configured volume when available. If v
 
 ## Prepackaged UI
 
-Pool Tracker includes a bundled frontend module at `/pool_tracker_static/pool-tracker-frontend.js`.
-
 When Home Assistant frontend support is available, the integration registers a
 `Pool Tracker` sidebar panel automatically. The panel opens as a normal
 storage-mode Lovelace dashboard with concrete cards under `views` and `cards`,
@@ -121,43 +119,11 @@ is edited and saved, Pool Tracker regenerates the default card set from current
 entities.
 
 The sidebar panel is assembled from standard Lovelace cards for summaries,
-latest readings, recent records, and repeat-chemical actions. Pool Tracker only
-uses a custom card for the prediction chart that Lovelace does not provide
-natively. The chart card shows all prediction charts at once, including the
-predicted value line, uncertainty bounds, actual water tests, and chemical
-additions. The chart layout is responsive: narrow screens stack readings, wider
-dashboards show multiple readings per row, and laptop-size layouts can show the
-default four readings in one row.
-
-The same module also registers a Lovelace dashboard strategy for regular
-dashboards when you prefer an always-generated dashboard instead of an editable
-starter dashboard:
-
-```yaml
-strategy:
-  type: custom:pool-tracker
-```
-
-It also registers the graph card for dashboards that need only the prediction
-chart:
-
-```yaml
-type: custom:pool-tracker-graph-card
-```
-
-By default, the card discovers all Pool Tracker prediction sensors and renders them together. To pin one reading, set `entity`:
-
-```yaml
-type: custom:pool-tracker-graph-card
-entity: sensor.pool_free_chlorine_predicted
-```
-
-To use the graph without the bundled logging controls, set `show_logs: false`:
-
-```yaml
-type: custom:pool-tracker-graph-card
-show_logs: false
-```
+latest readings, recent records, repeat-chemical actions, and recent-record
+delete buttons. Pool Tracker does not register custom Lovelace cards or
+strategies. If you edit and save the dashboard, Pool Tracker preserves your
+layout. Use `pool_tracker.reset_dashboard` to discard saved dashboard edits and
+return to the generated default layout.
 
 ## Service Actions
 
@@ -240,6 +206,17 @@ data:
 Successful deletes return the deleted `record_id`, `pool_id`, and record `type`,
 and fire a `pool_tracker_record_deleted` event. Home Assistant Recorder history
 for earlier entity/event state changes is not rewritten.
+
+### `pool_tracker.reset_dashboard`
+
+Discards saved edits to the Pool Tracker Lovelace dashboard and returns the
+sidebar panel to the generated default layout. `confirm` must be `true`.
+
+```yaml
+service: pool_tracker.reset_dashboard
+data:
+  confirm: true
+```
 
 ## OpenClaw Examples
 

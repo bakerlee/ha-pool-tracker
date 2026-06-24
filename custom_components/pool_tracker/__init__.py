@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant.components import frontend
-from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
 from homeassistant.components.lovelace.const import (
     CONF_ICON,
@@ -45,6 +43,7 @@ from .const import (
     SERVICE_DELETE_RECORD,
     SERVICE_LOG_CHEMICAL_ADDITION,
     SERVICE_LOG_WATER_TEST,
+    SERVICE_RESET_DASHBOARD,
     WATER_CLARITY_OPTIONS,
     WATER_READING_PH,
     WATER_READING_WATER_CLARITY,
@@ -63,12 +62,9 @@ if TYPE_CHECKING:
     type PoolTrackerConfigEntry = ConfigEntry[PoolTrackerRuntime]
 
 _LOGGER = logging.getLogger(__name__)
-FRONTEND_URL_BASE = f"/{DOMAIN}_static"
-FRONTEND_MODULE_URL = f"{FRONTEND_URL_BASE}/pool-tracker-frontend.js"
 FRONTEND_PANEL_URL_PATH = DOMAIN
 FRONTEND_DASHBOARD_STORAGE_KEY = f"lovelace.{FRONTEND_PANEL_URL_PATH}"
 FRONTEND_DASHBOARD_STORAGE_VERSION = 1
-FRONTEND_GRAPH_CARD_TYPE = "custom:pool-tracker-graph-card"
 
 
 class PoolTrackerLovelaceConfig(LovelaceConfig):
@@ -184,14 +180,6 @@ def _pool_tracker_lovelace_cards(hass: HomeAssistant) -> list[dict[str, Any]]:
     if prediction_states:
         cards.append(
             {
-                "type": FRONTEND_GRAPH_CARD_TYPE,
-                "title": "Prediction charts",
-                "entities": [state.entity_id for state in prediction_states],
-                "show_logs": False,
-            }
-        )
-        cards.append(
-            {
                 "type": "grid",
                 "title": "Predictions now",
                 "columns": min(2, len(prediction_states)),
@@ -234,6 +222,17 @@ def _pool_tracker_lovelace_cards(hass: HomeAssistant) -> list[dict[str, Any]]:
                 "columns": min(2, len(quick_cards)),
                 "square": False,
                 "cards": quick_cards,
+            }
+        )
+
+    if delete_cards := _delete_record_cards(selected_log_state):
+        cards.append(
+            {
+                "type": "grid",
+                "title": "Delete recent records",
+                "columns": min(2, len(delete_cards)),
+                "square": False,
+                "cards": delete_cards,
             }
         )
 
@@ -328,6 +327,50 @@ def _quick_chemical_cards(state: Any | None) -> list[dict[str, Any]]:
         }
         for action in quick_additions
     ]
+
+
+def _delete_record_cards(state: Any | None) -> list[dict[str, Any]]:
+    """Return standard Lovelace button cards for recent record deletion."""
+    attrs = state.attributes if state is not None else {}
+    cards: list[dict[str, Any]] = []
+    for record in attrs.get("recent_water_tests") or []:
+        if card := _delete_record_card(attrs, record, _water_test_line, "mdi:delete"):
+            cards.append(card)
+    for record in attrs.get("recent_chemical_additions") or []:
+        if card := _delete_record_card(
+            attrs, record, _chemical_line, "mdi:delete-outline"
+        ):
+            cards.append(card)
+    return cards
+
+
+def _delete_record_card(
+    attrs: dict[str, Any],
+    record: dict[str, Any],
+    line_fn: Any,
+    icon: str,
+) -> dict[str, Any] | None:
+    record_id = record.get("record_id")
+    if not record_id:
+        return None
+    label = line_fn(record)
+    return {
+        "type": "button",
+        "name": f"Delete {label}",
+        "icon": icon,
+        "tap_action": {
+            "action": "call-service",
+            "service": "pool_tracker.delete_record",
+            "confirmation": {"text": f"Delete {label}?"},
+            "data": _compact_object(
+                {
+                    "pool_id": attrs.get("pool_id"),
+                    "record_id": record_id,
+                    "confirm": True,
+                }
+            ),
+        },
+    }
 
 
 def _recent_records_markdown(state: Any | None) -> str:
@@ -510,6 +553,14 @@ def _delete_record_service_schema():
     )
 
 
+def _reset_dashboard_service_schema():
+    return vol.Schema(
+        {
+            vol.Required("confirm"): vol.All(cv.boolean, vol.Equal(True)),
+        }
+    )
+
+
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Set up Pool Tracker service actions."""
     event_store = PoolTrackerStore(create_home_assistant_store(hass))
@@ -570,6 +621,10 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             "type": deleted["type"],
         }
 
+    async def handle_reset_dashboard(call: ServiceCall) -> dict[str, str]:
+        await _async_reset_dashboard(hass)
+        return {"dashboard": FRONTEND_PANEL_URL_PATH}
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_LOG_WATER_TEST,
@@ -591,29 +646,19 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         schema=_delete_record_service_schema(),
         supports_response=SupportsResponse.OPTIONAL,
     )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_RESET_DASHBOARD,
+        handle_reset_dashboard,
+        schema=_reset_dashboard_service_schema(),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
 
     return True
 
 
 async def _async_setup_frontend(hass: HomeAssistant) -> None:
-    """Register bundled Pool Tracker frontend assets when HTTP is available."""
-    http = getattr(hass, "http", None)
-    if http is None:
-        return
-
-    await http.async_register_static_paths(
-        [
-            StaticPathConfig(
-                FRONTEND_URL_BASE,
-                str(Path(__file__).parent / "frontend"),
-                cache_headers=True,
-            )
-        ]
-    )
-
-    if frontend.DATA_EXTRA_MODULE_URL in hass.data:
-        frontend.add_extra_js_url(hass, FRONTEND_MODULE_URL)
-
+    """Register the editable Pool Tracker Lovelace dashboard."""
     if LOVELACE_DATA not in hass.data:
         return
 
@@ -629,6 +674,19 @@ async def _async_setup_frontend(hass: HomeAssistant) -> None:
         config={"mode": MODE_STORAGE},
         update=frontend.async_panel_exists(hass, FRONTEND_PANEL_URL_PATH),
     )
+
+
+async def _async_reset_dashboard(hass: HomeAssistant) -> None:
+    """Reset the Pool Tracker Lovelace dashboard to the generated default."""
+    dashboard = hass.data.get(LOVELACE_DATA)
+    lovelace_config = None
+    if dashboard is not None:
+        lovelace_config = dashboard.dashboards.get(FRONTEND_PANEL_URL_PATH)
+    if isinstance(lovelace_config, PoolTrackerLovelaceConfig):
+        await lovelace_config.async_delete()
+        return
+
+    await PoolTrackerLovelaceConfig(hass).async_delete()
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: PoolTrackerConfigEntry) -> bool:

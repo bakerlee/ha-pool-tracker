@@ -258,6 +258,14 @@ delete_record:
       selector:
         boolean:
 
+reset_dashboard:
+  fields:
+    confirm:
+      required: true
+      example: true
+      selector:
+        boolean:
+
 get_prediction:
   target:
     entity:

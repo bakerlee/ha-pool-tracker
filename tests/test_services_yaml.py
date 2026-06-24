@@ -67,3 +67,14 @@ def test_delete_record_service_requires_record_id_and_confirmation() -> None:
     assert "text" in fields["record_id"]["selector"]
     assert fields["confirm"]["required"] is True
     assert "boolean" in fields["confirm"]["selector"]
+
+
+def test_reset_dashboard_service_requires_confirmation() -> None:
+    """Reset metadata should expose an explicit confirmation control."""
+    services = yaml.safe_load(
+        Path("custom_components/pool_tracker/services.yaml").read_text()
+    )
+
+    fields = services["reset_dashboard"]["fields"]
+    assert fields["confirm"]["required"] is True
+    assert "boolean" in fields["confirm"]["selector"]

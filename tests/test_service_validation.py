@@ -10,6 +10,7 @@ vol = pytest.importorskip("voluptuous")
 from custom_components.pool_tracker import (  # noqa: E402
     _chemical_addition_service_schema,
     _delete_record_service_schema,
+    _reset_dashboard_service_schema,
     _water_test_service_schema,
 )
 from custom_components.pool_tracker.const import (  # noqa: E402
@@ -135,3 +136,16 @@ def test_delete_record_service_validation_requires_confirmation() -> None:
         "record_id": "abc123",
         "confirm": True,
     }
+
+
+def test_reset_dashboard_service_validation_requires_confirmation() -> None:
+    """Dashboard reset requires explicit confirmation."""
+    schema = _reset_dashboard_service_schema()
+
+    with pytest.raises(vol.Invalid):
+        schema({})
+
+    with pytest.raises(vol.Invalid):
+        schema({"confirm": False})
+
+    assert schema({"confirm": True}) == {"confirm": True}
