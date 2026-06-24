@@ -9,7 +9,7 @@ Agents should call:
 - `pool_tracker.log_water_test`
 - `pool_tracker.log_chemical_addition`
 
-Agents should not write Home Assistant helpers, mutate Pool Tracker sensors, call equipment-control services, delete records without explicit human correction intent, or infer dosing advice.
+Agents should not write Home Assistant helpers, mutate Pool Tracker sensors, call equipment-control services, delete records without explicit human correction intent, or infer dosing advice. Pool Tracker's dashboard may reference selected temperature, pump, and heater entities, but those equipment entities are not part of the OpenClaw logging surface.
 
 ## Water Test
 

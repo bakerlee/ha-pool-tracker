@@ -14,6 +14,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    ATTR_UNIT_OF_MEASUREMENT,
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
@@ -36,6 +37,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
     CONF_COVER_ENTITY_ID,
+    CONF_WATER_TEMPERATURE_ENTITY_ID,
     CONF_WEATHER_ENTITY_ID,
     DOMAIN,
     NUMERIC_WATER_READINGS,
@@ -459,7 +461,11 @@ class PoolTrackerSensor(SensorEntity):
         profile = self._pool_profile
         return [
             entity_id
-            for key in (CONF_WEATHER_ENTITY_ID, CONF_COVER_ENTITY_ID)
+            for key in (
+                CONF_WEATHER_ENTITY_ID,
+                CONF_COVER_ENTITY_ID,
+                CONF_WATER_TEMPERATURE_ENTITY_ID,
+            )
             if (entity_id := profile.get(key))
         ]
 
@@ -469,18 +475,11 @@ class PoolTrackerSensor(SensorEntity):
         weather_attrs = weather_state.attributes if weather_state is not None else {}
         forecast_attrs = _first_forecast_attrs(weather_attrs)
 
-        temperature = _temperature_f(
-            _float(weather_attrs.get("temperature")),
-            unit=weather_attrs.get("temperature_unit"),
+        temperature = _water_temperature_source_f(
+            self.hass, profile.get(CONF_WATER_TEMPERATURE_ENTITY_ID)
         )
         if temperature is None:
-            temperature = _temperature_f(
-                _float(
-                    forecast_attrs.get("temperature")
-                    or forecast_attrs.get("native_temperature")
-                ),
-                unit=weather_attrs.get("temperature_unit"),
-            )
+            temperature = _weather_temperature_f(weather_attrs, forecast_attrs)
 
         sunlight = _sunlight_from_weather_attrs(weather_attrs)
         if sunlight is None:
@@ -499,7 +498,11 @@ class PoolTrackerSensor(SensorEntity):
         covered = _bool_state(self.hass, profile.get(CONF_COVER_ENTITY_ID))
         sources = {
             key: entity_id
-            for key in (CONF_WEATHER_ENTITY_ID, CONF_COVER_ENTITY_ID)
+            for key in (
+                CONF_WEATHER_ENTITY_ID,
+                CONF_COVER_ENTITY_ID,
+                CONF_WATER_TEMPERATURE_ENTITY_ID,
+            )
             if (entity_id := profile.get(key))
         }
         return PredictionContext(
@@ -536,6 +539,47 @@ def _bool_state(hass: HomeAssistant, entity_id: str | None) -> bool | None:
     if state.state in {"open", "uncovered", "false", "no"}:
         return False
     return None
+
+
+def _water_temperature_source_f(
+    hass: HomeAssistant, entity_id: str | None
+) -> float | None:
+    """Return the configured water temperature source in Fahrenheit."""
+    state = _state(hass, entity_id)
+    if state is None:
+        return None
+
+    domain = state.entity_id.split(".", 1)[0]
+    if domain in {"climate", "water_heater"}:
+        return _temperature_f(
+            _float(state.attributes.get("current_temperature")),
+            unit=state.attributes.get("temperature_unit")
+            or state.attributes.get(ATTR_UNIT_OF_MEASUREMENT),
+        )
+
+    return _temperature_f(
+        _float(state.state),
+        unit=state.attributes.get(ATTR_UNIT_OF_MEASUREMENT),
+    )
+
+
+def _weather_temperature_f(
+    weather_attrs: dict[str, Any], forecast_attrs: dict[str, Any]
+) -> float | None:
+    """Return weather temperature context in Fahrenheit."""
+    temperature = _temperature_f(
+        _float(weather_attrs.get("temperature")),
+        unit=weather_attrs.get("temperature_unit"),
+    )
+    if temperature is not None:
+        return temperature
+    return _temperature_f(
+        _float(
+            forecast_attrs.get("temperature")
+            or forecast_attrs.get("native_temperature")
+        ),
+        unit=weather_attrs.get("temperature_unit"),
+    )
 
 
 def _sunlight_from_weather_attrs(attrs: dict[str, Any]) -> float | None:

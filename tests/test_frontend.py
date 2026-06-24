@@ -10,12 +10,21 @@ pytest.importorskip("homeassistant")
 
 from homeassistant.components import frontend  # noqa: E402
 from homeassistant.components.lovelace.const import LOVELACE_DATA  # noqa: E402
+from pytest_homeassistant_custom_component.common import MockConfigEntry  # noqa: E402
 
 from custom_components.pool_tracker import (  # noqa: E402
     FRONTEND_PANEL_URL_PATH,
     PoolTrackerLovelaceConfig,
     _async_reset_dashboard,
     _async_setup_frontend,
+)
+from custom_components.pool_tracker.const import (  # noqa: E402
+    CONF_HEATER_ENTITY_ID,
+    CONF_POOL_ID,
+    CONF_POOL_NAME,
+    CONF_PUMP_ENTITY_ID,
+    CONF_WATER_TEMPERATURE_ENTITY_ID,
+    DOMAIN,
 )
 
 
@@ -133,6 +142,55 @@ async def test_frontend_panel_generates_editable_lovelace_cards(hass) -> None:
         },
     }
     assert "pool_tracker.delete_record" not in str(cards)
+
+
+async def test_frontend_panel_generates_pool_equipment_cards(hass) -> None:
+    """The generated dashboard references configured equipment entities directly."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id="pool",
+        data={
+            CONF_POOL_ID: "pool",
+            CONF_POOL_NAME: "Pool",
+            CONF_WATER_TEMPERATURE_ENTITY_ID: "sensor.pool_temperature",
+            CONF_PUMP_ENTITY_ID: "switch.pool_pump",
+            CONF_HEATER_ENTITY_ID: "climate.pool_heater",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    lovelace_config = PoolTrackerLovelaceConfig(hass)
+
+    config = await lovelace_config.async_load(False)
+
+    cards = config["views"][0]["cards"]
+    assert cards == [
+        {
+            "type": "grid",
+            "title": "Pool equipment",
+            "columns": 3,
+            "square": False,
+            "cards": [
+                {
+                    "type": "tile",
+                    "entity": "sensor.pool_temperature",
+                    "name": "Pool Water temperature",
+                },
+                {
+                    "type": "tile",
+                    "entity": "switch.pool_pump",
+                    "name": "Pool Pump",
+                },
+                {
+                    "type": "tile",
+                    "entity": "climate.pool_heater",
+                    "name": "Pool Heater",
+                },
+            ],
+        }
+    ]
+    assert "current_water_temperature" not in str(cards)
 
 
 async def test_frontend_panel_persists_user_edited_lovelace_config(hass) -> None:

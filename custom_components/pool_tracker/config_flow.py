@@ -12,15 +12,18 @@ from homeassistant.util import slugify
 from .const import (
     CONF_COVER_ENTITY_ID,
     CONF_DEFAULT_TESTING_METHOD,
+    CONF_HEATER_ENTITY_ID,
     CONF_POOL_ID,
     CONF_POOL_NAME,
     CONF_POOL_TYPE,
     CONF_POOL_VOLUME,
     CONF_POOL_VOLUME_UNIT,
+    CONF_PUMP_ENTITY_ID,
     CONF_SANITIZER_TYPE,
     CONF_SURFACE_TYPE,
     CONF_TRACKED_METRICS,
     CONF_TYPICALLY_COVERED,
+    CONF_WATER_TEMPERATURE_ENTITY_ID,
     CONF_WEATHER_ENTITY_ID,
     DEFAULT_POOL_ID,
     DEFAULT_POOL_NAME,
@@ -40,6 +43,9 @@ from .const import (
 POOL_PROFILE_ENTITY_KEYS = (
     CONF_WEATHER_ENTITY_ID,
     CONF_COVER_ENTITY_ID,
+    CONF_WATER_TEMPERATURE_ENTITY_ID,
+    CONF_PUMP_ENTITY_ID,
+    CONF_HEATER_ENTITY_ID,
 )
 
 
@@ -169,6 +175,15 @@ def _pool_profile_schema(
         ): _entity_selector("weather"),
         _optional_with_default(CONF_COVER_ENTITY_ID, defaults): _entity_selector(
             ["binary_sensor", "cover", "input_boolean", "switch"]
+        ),
+        _optional_with_default(
+            CONF_WATER_TEMPERATURE_ENTITY_ID, defaults
+        ): _entity_selector(["sensor", "climate", "water_heater"]),
+        _optional_with_default(CONF_PUMP_ENTITY_ID, defaults): _entity_selector(
+            ["switch", "fan"]
+        ),
+        _optional_with_default(CONF_HEATER_ENTITY_ID, defaults): _entity_selector(
+            ["climate", "water_heater"]
         ),
     }
     return vol.Schema(schema)

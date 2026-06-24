@@ -25,6 +25,7 @@ from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_POOL_VOLUME_UNIT,
     CONF_TRACKED_METRICS,
     CONF_TYPICALLY_COVERED,
+    CONF_WATER_TEMPERATURE_ENTITY_ID,
     CONF_WEATHER_ENTITY_ID,
     DOMAIN,
     SERVICE_DELETE_RECORD,
@@ -362,6 +363,118 @@ async def test_prediction_sensor_updates_after_water_test_and_context_change(
     assert updated is not None
     updated_prediction = await _get_prediction(hass, updated.entity_id)
     assert updated_prediction["model_inputs"]["sunlight"] == 1.0
+
+
+@pytest.mark.parametrize(
+    ("entity_id", "state", "attributes", "expected_temperature_f"),
+    [
+        (
+            "sensor.pool_temperature",
+            "30",
+            {"unit_of_measurement": "°C"},
+            86.0,
+        ),
+        (
+            "climate.pool_heater",
+            "heat",
+            {"current_temperature": 84, "temperature_unit": "°F"},
+            84.0,
+        ),
+        (
+            "water_heater.pool_heater",
+            "on",
+            {"current_temperature": 29, "temperature_unit": "°C"},
+            84.2,
+        ),
+    ],
+)
+async def test_prediction_context_uses_configured_water_temperature_source(
+    hass,
+    entity_id: str,
+    state: str,
+    attributes: dict[str, Any],
+    expected_temperature_f: float,
+) -> None:
+    """Configured water temperature entities feed prediction context directly."""
+    hass.states.async_set(entity_id, state, attributes)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id="pool",
+        data={
+            CONF_POOL_ID: "pool",
+            CONF_POOL_NAME: "Pool",
+            CONF_WATER_TEMPERATURE_ENTITY_ID: entity_id,
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_WATER_TEST,
+        {"free_chlorine": 3.0},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    prediction_state = _sensor_state(hass, "free_chlorine_predicted")
+    assert prediction_state is not None
+    prediction = await _get_prediction(hass, prediction_state.entity_id)
+
+    assert prediction["model_inputs"]["temperature_f"] == pytest.approx(
+        expected_temperature_f
+    )
+    assert prediction["model_inputs"]["sources"][CONF_WATER_TEMPERATURE_ENTITY_ID] == (
+        entity_id
+    )
+
+
+async def test_prediction_context_falls_back_to_weather_temperature(
+    hass,
+) -> None:
+    """Invalid water temperature sources do not block weather fallback context."""
+    hass.states.async_set(
+        "sensor.pool_temperature",
+        "unknown",
+        {"unit_of_measurement": "°F"},
+    )
+    hass.states.async_set(
+        "weather.home",
+        "sunny",
+        {"temperature": 72, "temperature_unit": "°F"},
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        unique_id="pool",
+        data={
+            CONF_POOL_ID: "pool",
+            CONF_POOL_NAME: "Pool",
+            CONF_WATER_TEMPERATURE_ENTITY_ID: "sensor.pool_temperature",
+            CONF_WEATHER_ENTITY_ID: "weather.home",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_LOG_WATER_TEST,
+        {"free_chlorine": 3.0},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    prediction_state = _sensor_state(hass, "free_chlorine_predicted")
+    assert prediction_state is not None
+    prediction = await _get_prediction(hass, prediction_state.entity_id)
+
+    assert prediction["model_inputs"]["temperature_f"] == 72
 
 
 async def test_prediction_sensor_applies_logged_chlorine_addition(hass) -> None:

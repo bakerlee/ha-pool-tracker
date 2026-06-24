@@ -29,10 +29,13 @@ from .const import (
     CHEMICAL_AMOUNT_UNITS,
     CHEMICAL_OPTIONS,
     CONF_DEFAULT_TESTING_METHOD,
+    CONF_HEATER_ENTITY_ID,
     CONF_POOL_ID,
     CONF_POOL_NAME,
+    CONF_PUMP_ENTITY_ID,
     CONF_TRACKED_METRICS,
     CONF_TYPICALLY_COVERED,
+    CONF_WATER_TEMPERATURE_ENTITY_ID,
     DEFAULT_TESTING_METHOD,
     DOMAIN,
     EVENT_RECORD_CREATED,
@@ -164,6 +167,7 @@ def _pool_tracker_lovelace_config(hass: HomeAssistant) -> dict[str, Any]:
 
 def _pool_tracker_lovelace_cards(hass: HomeAssistant) -> list[dict[str, Any]]:
     """Build the concrete Lovelace cards for the Pool Tracker dashboard."""
+    equipment_cards = _pool_equipment_cards(hass)
     prediction_states = _prediction_states_for_hass(hass)
     log_states = _pool_log_states_for_hass(hass)
     latest_reading_states = [
@@ -173,10 +177,21 @@ def _pool_tracker_lovelace_cards(hass: HomeAssistant) -> list[dict[str, Any]]:
     if selected_log_state is None and log_states:
         selected_log_state = log_states[0]
 
-    if not prediction_states and not latest_reading_states:
+    if not equipment_cards and not prediction_states and not latest_reading_states:
         return [{"type": "markdown", "content": "No Pool Tracker sensors yet."}]
 
     cards: list[dict[str, Any]] = []
+    if equipment_cards:
+        cards.append(
+            {
+                "type": "grid",
+                "title": "Pool equipment",
+                "columns": min(3, len(equipment_cards)),
+                "square": False,
+                "cards": equipment_cards,
+            }
+        )
+
     if prediction_states:
         cards.append(
             {
@@ -226,6 +241,43 @@ def _pool_tracker_lovelace_cards(hass: HomeAssistant) -> list[dict[str, Any]]:
         )
 
     return cards
+
+
+def _pool_equipment_cards(hass: HomeAssistant) -> list[dict[str, Any]]:
+    """Return direct Lovelace cards for configured pool equipment entities."""
+    cards: list[dict[str, Any]] = []
+    profiles = sorted(_pool_profiles_for_hass(hass), key=_pool_profile_title)
+    for profile in profiles:
+        pool_name = profile.get(CONF_POOL_NAME) or profile.get(CONF_POOL_ID) or "Pool"
+        for key, label in (
+            (CONF_WATER_TEMPERATURE_ENTITY_ID, "Water temperature"),
+            (CONF_PUMP_ENTITY_ID, "Pump"),
+            (CONF_HEATER_ENTITY_ID, "Heater"),
+        ):
+            if entity_id := profile.get(key):
+                cards.append(
+                    {
+                        "type": "tile",
+                        "entity": entity_id,
+                        "name": f"{pool_name} {label}",
+                    }
+                )
+    return cards
+
+
+def _pool_profiles_for_hass(hass: HomeAssistant) -> list[dict[str, Any]]:
+    """Return configured pool profiles for dashboard generation."""
+    profiles: list[dict[str, Any]] = []
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        profile = dict(entry.options or entry.data)
+        if profile.get(CONF_POOL_ID):
+            profiles.append(profile)
+    return profiles
+
+
+def _pool_profile_title(profile: dict[str, Any]) -> str:
+    """Return a stable sort label for a pool profile."""
+    return str(profile.get(CONF_POOL_NAME) or profile.get(CONF_POOL_ID) or "")
 
 
 def _prediction_states_for_hass(hass: HomeAssistant) -> list[Any]:

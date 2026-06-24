@@ -17,15 +17,18 @@ from custom_components.pool_tracker.config_flow import (  # noqa: E402
 from custom_components.pool_tracker.const import (  # noqa: E402
     CONF_COVER_ENTITY_ID,
     CONF_DEFAULT_TESTING_METHOD,
+    CONF_HEATER_ENTITY_ID,
     CONF_POOL_ID,
     CONF_POOL_NAME,
     CONF_POOL_TYPE,
     CONF_POOL_VOLUME,
     CONF_POOL_VOLUME_UNIT,
+    CONF_PUMP_ENTITY_ID,
     CONF_SANITIZER_TYPE,
     CONF_SURFACE_TYPE,
     CONF_TRACKED_METRICS,
     CONF_TYPICALLY_COVERED,
+    CONF_WATER_TEMPERATURE_ENTITY_ID,
     CONF_WEATHER_ENTITY_ID,
     DOMAIN,
     WATER_TEST_METRICS,
@@ -47,6 +50,9 @@ def test_build_pool_config_keeps_future_calculation_attributes() -> None:
             CONF_TYPICALLY_COVERED: True,
             CONF_WEATHER_ENTITY_ID: "weather.home",
             CONF_COVER_ENTITY_ID: "binary_sensor.pool_covered",
+            CONF_WATER_TEMPERATURE_ENTITY_ID: "sensor.pool_temperature",
+            CONF_PUMP_ENTITY_ID: "switch.pool_pump",
+            CONF_HEATER_ENTITY_ID: "climate.pool_heater",
         }
     )
 
@@ -61,6 +67,9 @@ def test_build_pool_config_keeps_future_calculation_attributes() -> None:
     assert pool[CONF_TYPICALLY_COVERED] is True
     assert pool[CONF_WEATHER_ENTITY_ID] == "weather.home"
     assert pool[CONF_COVER_ENTITY_ID] == "binary_sensor.pool_covered"
+    assert pool[CONF_WATER_TEMPERATURE_ENTITY_ID] == "sensor.pool_temperature"
+    assert pool[CONF_PUMP_ENTITY_ID] == "switch.pool_pump"
+    assert pool[CONF_HEATER_ENTITY_ID] == "climate.pool_heater"
 
 
 def test_pool_profile_schema_serializes_for_home_assistant_forms() -> None:
@@ -82,6 +91,9 @@ def test_pool_profile_schema_serializes_for_home_assistant_forms() -> None:
         CONF_TYPICALLY_COVERED,
         CONF_WEATHER_ENTITY_ID,
         CONF_COVER_ENTITY_ID,
+        CONF_WATER_TEMPERATURE_ENTITY_ID,
+        CONF_PUMP_ENTITY_ID,
+        CONF_HEATER_ENTITY_ID,
     ]
     sanitizer = next(
         field for field in converted if field["name"] == CONF_SANITIZER_TYPE
@@ -99,6 +111,22 @@ def test_pool_profile_schema_serializes_for_home_assistant_forms() -> None:
         "value": "free_chlorine",
         "label": "Free chlorine",
     }
+    water_temperature = next(
+        field
+        for field in converted
+        if field["name"] == CONF_WATER_TEMPERATURE_ENTITY_ID
+    )
+    assert water_temperature["selector"]["entity"]["domain"] == [
+        "sensor",
+        "climate",
+        "water_heater",
+    ]
+    pump = next(field for field in converted if field["name"] == CONF_PUMP_ENTITY_ID)
+    assert pump["selector"]["entity"]["domain"] == ["switch", "fan"]
+    heater = next(
+        field for field in converted if field["name"] == CONF_HEATER_ENTITY_ID
+    )
+    assert heater["selector"]["entity"]["domain"] == ["climate", "water_heater"]
 
 
 async def test_pool_profile_schema_defaults_single_weather_entity(hass) -> None:

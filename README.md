@@ -1,14 +1,14 @@
 # Pool Tracker
 
-Pool Tracker is a free, local-first Home Assistant custom integration for manual pool maintenance logging and level prediction.
+Pool Tracker is a free, local-first Home Assistant custom integration for manual pool maintenance logging, level prediction, and pool-management dashboarding.
 
-It stores an event log for water tests and chemical additions, exposes read-only derived sensors with uncertainty-aware predictions, and registers narrow Home Assistant service actions that dashboards, automations, OpenClaw, or other agents can call.
+It stores an event log for water tests and chemical additions, exposes read-only derived sensors with uncertainty-aware predictions, and can assemble a pool dashboard that also references your selected Home Assistant temperature, pump, and heater entities.
 
 ## Scope
 
-Pool Tracker v1 is recordkeeping plus transparent level estimates.
+Pool Tracker v1 is recordkeeping, transparent level estimates, and a single Home Assistant dashboard for the pool.
 
-It does not provide chemical recommendations, dosing calculations, pump control, heater control, switch control, valve control, lock control, alarm control, outdoor power control, or automated dosing. Predictions are estimates for display and planning context only.
+It does not provide chemical recommendations, dosing calculations, valve control, lock control, alarm control, outdoor power control, automated dosing, or Pool Tracker-specific equipment service wrappers. Pump and heater controls shown in the dashboard are native controls for the Home Assistant entities you explicitly select. Predictions are estimates for display and planning context only.
 
 Logged chemical additions are human-entered records. They are not proof that a chemical was physically added.
 
@@ -45,8 +45,14 @@ Each config entry represents one pool and stores a small pool profile for future
 - Default water-testing method
 - Whether the pool is typically covered
 - Optional Home Assistant weather and cover entities
+- Optional Home Assistant water-temperature source, pump, and heater entities
 
 If Home Assistant has exactly one weather entity when a pool is configured, Pool Tracker preselects it. These attributes can be changed from the integration options. Optional entity values are ignored when they are missing, unavailable, or unknown. Pool Tracker still does not calculate chemical recommendations.
+
+The water-temperature source is configured separately from the heater. Use any
+Home Assistant `sensor`, `climate`, or `water_heater` entity that represents
+the live pool water temperature. Pump entities can be `switch` or `fan`
+entities. Heater entities can be `climate` or `water_heater` entities.
 
 ## Entities
 
@@ -104,7 +110,12 @@ The v1 model is intentionally transparent and resilient to sparse data:
 
 Prediction sensors remain unknown until at least one actual water-test reading exists for that value. A chemical-addition record alone is not enough to invent an initial free chlorine baseline.
 
-Weather context uses the configured weather entity's current attributes, and forecast attributes when the weather entity exposes them.
+Temperature context uses the configured water-temperature source when available.
+For `sensor` entities, Pool Tracker reads the sensor state. For `climate` and
+`water_heater` entities, it reads `current_temperature`. If the selected source
+is missing, unavailable, unknown, or not numeric, Pool Tracker falls back to the
+configured weather entity's current attributes and forecast attributes when the
+weather entity exposes them.
 
 For chemical additions, Pool Tracker uses configured volume when available. If volume is missing, it falls back to a rough default by pool type and reports the volume source in `model_inputs`. This is still an estimate, not a dosing recommendation.
 
@@ -118,12 +129,15 @@ instead of being stuck with a single opaque strategy entry. Until the dashboard
 is edited and saved, Pool Tracker regenerates the default card set from current
 entities.
 
-The sidebar panel is assembled from standard Lovelace cards for summaries,
-latest readings, recent records, and repeat-chemical actions. Pool Tracker does
-not register custom Lovelace cards or strategies. Destructive corrections such
-as deleting a record stay action-only through `pool_tracker.delete_record`; the
-generated dashboard does not place delete buttons in Lovelace. If you edit and
-save the dashboard, Pool Tracker preserves your layout. Use
+The sidebar panel is assembled from standard Lovelace cards for configured
+equipment, summaries, latest readings, recent records, and repeat-chemical
+actions. Equipment tiles reference the selected Home Assistant entities
+directly; Pool Tracker does not create proxy temperature, pump, or heater
+entities. Pool Tracker does not register custom Lovelace cards or strategies.
+Destructive corrections such as deleting a record stay action-only through
+`pool_tracker.delete_record`; the generated dashboard does not place delete
+buttons in Lovelace. If you edit and save the dashboard, Pool Tracker preserves
+your layout. Use
 `pool_tracker.reset_dashboard` to discard saved dashboard edits and return to
 the generated default layout.
 

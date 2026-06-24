@@ -16,7 +16,10 @@
           "tracked_metrics": "Tracked metrics",
           "typically_covered": "Typically covered",
           "weather_entity_id": "Weather entity",
-          "cover_entity_id": "Cover entity"
+          "cover_entity_id": "Cover entity",
+          "water_temperature_entity_id": "Water temperature source",
+          "pump_entity_id": "Pump entity",
+          "heater_entity_id": "Heater entity"
         }
       }
     }
@@ -37,7 +40,10 @@
           "tracked_metrics": "Tracked metrics",
           "typically_covered": "Typically covered",
           "weather_entity_id": "Weather entity",
-          "cover_entity_id": "Cover entity"
+          "cover_entity_id": "Cover entity",
+          "water_temperature_entity_id": "Water temperature source",
+          "pump_entity_id": "Pump entity",
+          "heater_entity_id": "Heater entity"
         }
       }
     }
