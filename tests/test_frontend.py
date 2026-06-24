@@ -108,7 +108,6 @@ async def test_frontend_panel_generates_editable_lovelace_cards(hass) -> None:
         "entities",
         "markdown",
         "grid",
-        "grid",
     ]
     assert not any(str(card["type"]).startswith("custom:") for card in cards)
     assert cards[0]["title"] == "Predictions now"
@@ -133,24 +132,7 @@ async def test_frontend_panel_generates_editable_lovelace_cards(hass) -> None:
             "unit": "Tbsp",
         },
     }
-    assert cards[4]["title"] == "Delete recent records"
-    delete_action = cards[4]["cards"][0]["tap_action"]
-    assert delete_action == {
-        "action": "call-service",
-        "service": "pool_tracker.delete_record",
-        "confirmation": {"text": delete_action["confirmation"]["text"]},
-        "data": {
-            "pool_id": "pool",
-            "record_id": "water-record",
-            "confirm": True,
-        },
-    }
-    assert delete_action["confirmation"]["text"].startswith("Delete ")
-    assert cards[4]["cards"][1]["tap_action"]["data"] == {
-        "pool_id": "pool",
-        "record_id": "chemical-record",
-        "confirm": True,
-    }
+    assert "pool_tracker.delete_record" not in str(cards)
 
 
 async def test_frontend_panel_persists_user_edited_lovelace_config(hass) -> None:

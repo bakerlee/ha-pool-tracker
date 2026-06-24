@@ -225,17 +225,6 @@ def _pool_tracker_lovelace_cards(hass: HomeAssistant) -> list[dict[str, Any]]:
             }
         )
 
-    if delete_cards := _delete_record_cards(selected_log_state):
-        cards.append(
-            {
-                "type": "grid",
-                "title": "Delete recent records",
-                "columns": min(2, len(delete_cards)),
-                "square": False,
-                "cards": delete_cards,
-            }
-        )
-
     return cards
 
 
@@ -327,50 +316,6 @@ def _quick_chemical_cards(state: Any | None) -> list[dict[str, Any]]:
         }
         for action in quick_additions
     ]
-
-
-def _delete_record_cards(state: Any | None) -> list[dict[str, Any]]:
-    """Return standard Lovelace button cards for recent record deletion."""
-    attrs = state.attributes if state is not None else {}
-    cards: list[dict[str, Any]] = []
-    for record in attrs.get("recent_water_tests") or []:
-        if card := _delete_record_card(attrs, record, _water_test_line, "mdi:delete"):
-            cards.append(card)
-    for record in attrs.get("recent_chemical_additions") or []:
-        if card := _delete_record_card(
-            attrs, record, _chemical_line, "mdi:delete-outline"
-        ):
-            cards.append(card)
-    return cards
-
-
-def _delete_record_card(
-    attrs: dict[str, Any],
-    record: dict[str, Any],
-    line_fn: Any,
-    icon: str,
-) -> dict[str, Any] | None:
-    record_id = record.get("record_id")
-    if not record_id:
-        return None
-    label = line_fn(record)
-    return {
-        "type": "button",
-        "name": f"Delete {label}",
-        "icon": icon,
-        "tap_action": {
-            "action": "call-service",
-            "service": "pool_tracker.delete_record",
-            "confirmation": {"text": f"Delete {label}?"},
-            "data": _compact_object(
-                {
-                    "pool_id": attrs.get("pool_id"),
-                    "record_id": record_id,
-                    "confirm": True,
-                }
-            ),
-        },
-    }
 
 
 def _recent_records_markdown(state: Any | None) -> str:

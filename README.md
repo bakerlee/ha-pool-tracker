@@ -119,11 +119,13 @@ is edited and saved, Pool Tracker regenerates the default card set from current
 entities.
 
 The sidebar panel is assembled from standard Lovelace cards for summaries,
-latest readings, recent records, repeat-chemical actions, and recent-record
-delete buttons. Pool Tracker does not register custom Lovelace cards or
-strategies. If you edit and save the dashboard, Pool Tracker preserves your
-layout. Use `pool_tracker.reset_dashboard` to discard saved dashboard edits and
-return to the generated default layout.
+latest readings, recent records, and repeat-chemical actions. Pool Tracker does
+not register custom Lovelace cards or strategies. Destructive corrections such
+as deleting a record stay action-only through `pool_tracker.delete_record`; the
+generated dashboard does not place delete buttons in Lovelace. If you edit and
+save the dashboard, Pool Tracker preserves your layout. Use
+`pool_tracker.reset_dashboard` to discard saved dashboard edits and return to
+the generated default layout.
 
 ## Service Actions
 
